@@ -1,0 +1,33 @@
+import { redirect } from "next/navigation";
+import DashboardClient from "../../components/DashboardClient";
+import { loadApiAccounts } from "../../lib/api_accounts";
+import { syncActiveApiBookingsFromAccounts } from "../../lib/api_bookings";
+import { getCurrentWebUser } from "../../lib/web_auth";
+
+export const dynamic = "force-dynamic";
+
+export default async function ManagerPage() {
+  const user = await getCurrentWebUser();
+  if (!user) redirect("/login");
+  if (user.role !== "ADMIN") redirect("/");
+
+  const accounts = loadApiAccounts().map((account) => ({
+    id: account.id,
+    email: account.email,
+    displayName: account.displayName,
+    active: account.active,
+    updatedAt: account.updatedAt,
+    ...(account.otpCode ? { otpCode: account.otpCode } : {}),
+  }));
+  const bookings = await syncActiveApiBookingsFromAccounts();
+
+  return (
+    <DashboardClient
+      initialData={{
+        accounts,
+        bookings,
+        updatedAt: new Date().toISOString(),
+      }}
+    />
+  );
+}

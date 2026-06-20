@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="manifest" href="/manifest.json" />
+    <title>DQueue Accounts</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #080b12;
+        color: #f8fafc;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: radial-gradient(circle at 20% 0%, rgba(255, 111, 0, 0.16), transparent 32rem), #080b12;
+      }
+      main { width: min(1120px, calc(100vw - 28px)); margin: 0 auto; padding: 28px 0 48px; }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 20px;
+      }
+      h1 { margin: 0; font-size: 24px; }
+      .subtitle { margin: 6px 0 0; color: #94a3b8; font-size: 13px; }
+      button, a {
+        border: 1px solid #2b3749;
+        border-radius: 10px;
+        min-height: 40px;
+        padding: 0 14px;
+        font: inherit;
+        font-weight: 800;
+        white-space: nowrap;
+      }
+      button { background: #172033; color: #e2e8f0; cursor: pointer; }
+      button:hover { border-color: #ff8a1f; background: #202b40; }
+      button:disabled { cursor: wait; opacity: 0.55; }
+      button.primary { border-color: #ff7900; background: #ff7900; color: #1b0b00; }
+      button.danger { border-color: #7f1d1d; background: #3f1118; color: #fecaca; }
+      a {
+        display: inline-flex;
+        align-items: center;
+        color: #cbd5e1;
+        text-decoration: none;
+      }
+      .toolbar { display: flex; gap: 10px; }
+      .notice {
+        display: none;
+        margin-bottom: 16px;
+        border: 1px solid #334155;
+        border-radius: 12px;
+        padding: 12px 14px;
+        background: #111827;
+        color: #cbd5e1;
+        font-size: 13px;
+        line-height: 1.6;
+      }
+      .notice.visible { display: block; }
+      .notice.error { border-color: #7f1d1d; color: #fecaca; }
+      .accounts { display: grid; gap: 12px; }
+      .card {
+        border: 1px solid #202a39;
+        border-radius: 16px;
+        padding: 18px;
+        background: rgba(15, 20, 30, 0.92);
+        box-shadow: 0 16px 42px rgba(0, 0, 0, 0.25);
+      }
+      .account-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 14px;
+      }
+      .card h2 { margin: 0; font-size: 17px; }
+      .details {
+        display: grid;
+        gap: 6px;
+        margin: 14px 0 0;
+        color: #94a3b8;
+        font-size: 12px;
+      }
+      .detail-row {
+        display: grid;
+        grid-template-columns: 140px minmax(0, 1fr);
+        gap: 12px;
+        align-items: start;
+      }
+      .detail-label {
+        color: #64748b;
+        font-weight: 800;
+      }
+      .detail-value {
+        color: #bfdbfe;
+        overflow-wrap: anywhere;
+      }
+      .detail-value.public {
+        color: #fbbf24;
+        font-weight: 800;
+      }
+      .badges { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+      .badge {
+        border: 1px solid #334155;
+        border-radius: 999px;
+        padding: 4px 8px;
+        color: #cbd5e1;
+        font-size: 11px;
+        font-weight: 800;
+      }
+      .badge.online { border-color: #166534; color: #86efac; }
+      .badge.disabled { border-color: #92400e; color: #fcd34d; }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-start;
+        gap: 8px;
+        margin-top: 16px;
+        padding-top: 14px;
+        border-top: 1px solid #202a39;
+      }
+      .empty { color: #94a3b8; text-align: center; padding: 50px 0; }
+      @media (max-width: 700px) {
+        header, .account-top { display: block; }
+        .toolbar, .actions { margin-top: 14px; }
+        .badges { justify-content: flex-start; margin-top: 10px; }
+        .detail-row { grid-template-columns: 1fr; gap: 2px; }
+        button, a { width: 100%; justify-content: center; }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>จัดการบัญชี DQueue</h1>
+          <p class="subtitle">หนึ่งบัญชีใช้หนึ่งแอปและหนึ่ง virtual display ภายใน BlueStacks เครื่องเดียว</p>
+        </div>
+        <div class="toolbar">
+          <a href="/account/1">เปิด Account 1</a>
+          <button type="button" class="primary" id="add-account">+ เพิ่มบัญชี</button>
+        </div>
+      </header>
+      <div class="notice" id="notice"></div>
+      <section class="accounts" id="accounts">
+        <div class="empty">กำลังโหลดรายการบัญชี...</div>
+      </section>
+    </main>
+    <script src="/accounts.js" defer></script>
+  </body>
+</html>

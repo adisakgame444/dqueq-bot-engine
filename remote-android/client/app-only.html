@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="th">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#eb5c24" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="manifest" href="/manifest.json" />
+  <title>__ACCOUNT_NAME__</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      background: #030712;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      min-height: 100%;
+      margin: 0;
+      overflow: hidden;
+      overscroll-behavior: none;
+      background: #030712;
+    }
+
+    body {
+      min-height: 100vh;
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+    }
+
+    .app-stage {
+      position: relative;
+      display: grid;
+      grid-template-rows: 78fr 1920fr;
+      width: min(450px, calc((100dvh - 24px) * 900 / 1998));
+      max-width: calc(100vw - 24px);
+      aspect-ratio: 900 / 1998;
+      overflow: hidden;
+      border: 1px solid #202a39;
+      border-radius: 22px;
+      background: #030712;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+    }
+
+    .device-shell {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #030712;
+      touch-action: none;
+      user-select: none;
+      outline: none;
+    }
+
+    #screen,
+    #stream {
+      position: absolute;
+      top: 0;
+      left: 0;
+      display: block;
+      width: 100%;
+      height: 100%;
+      background: #030712;
+      object-fit: fill;
+    }
+
+    #screen {
+      -webkit-user-drag: none;
+    }
+
+    .status-slot {
+      position: relative;
+      z-index: 3;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(to right, #eb5c24, #ed7443 30%, #f98f2a);
+    }
+
+    .app-status-bar {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 14px;
+      color: #fff;
+      font: 700 12px/1 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+      pointer-events: none;
+    }
+
+    .status-left,
+    .status-right {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .signal-icon-left {
+      display: inline-flex;
+      align-items: flex-end;
+      gap: 1.5px;
+      height: 9px;
+      margin-right: 1px;
+    }
+
+    .signal-icon-left i {
+      width: 1.8px;
+      background: currentColor;
+      border-radius: 0.5px;
+    }
+
+    .signal-icon-left i:nth-child(1) { height: 2.5px; }
+    .signal-icon-left i:nth-child(2) { height: 4.5px; }
+    .signal-icon-left i:nth-child(3) { height: 6.5px; }
+    .signal-icon-left i:nth-child(4) { height: 9px; }
+
+    .notification-icon {
+      width: 12px;
+      height: 12px;
+      fill: currentColor;
+      opacity: 0.95;
+    }
+
+    .volte-badge {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      line-height: 0.75;
+      font-size: 5px;
+      font-family: system-ui, -apple-system, sans-serif;
+      font-weight: 900;
+      border: 1px solid currentColor;
+      border-radius: 2px;
+      padding: 0.5px 1px;
+      margin-right: 1px;
+      transform: scale(0.95);
+    }
+
+    .wifi-icon {
+      width: 14px;
+      height: 11px;
+      fill: currentColor;
+    }
+
+    .battery-container {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+
+    .battery-capsule {
+      position: relative;
+      width: 23px;
+      height: 12px;
+      border: 1px solid currentColor;
+      border-radius: 2.5px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0.5px;
+    }
+
+    .battery-capsule::after {
+      content: "";
+      position: absolute;
+      right: -2.5px;
+      top: 3.5px;
+      width: 1.5px;
+      height: 4px;
+      background: currentColor;
+      border-radius: 0 0.8px 0.8px 0;
+    }
+
+    #app-status-battery {
+      font-size: 8px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .charging-bolt {
+      width: 9px;
+      height: 11px;
+      fill: #fbbf24;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    .loading {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      color: #94a3b8;
+      background: #030712;
+      font: 13px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+      text-align: center;
+      pointer-events: none;
+    }
+
+    .mode,
+    .keyboard-capture {
+      position: fixed;
+      left: -10000px;
+      top: 0;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .fullscreen-prompt {
+      display: none;
+    }
+
+
+
+    @media (max-width: 900px),
+    (hover: none) and (pointer: coarse) {
+
+      :root {
+        background: linear-gradient(to right, #eb5c24, #ed7443 30%, #f98f2a) !important;
+      }
+
+      html,
+      body {
+        height: 100%;
+        place-items: start center;
+        background: linear-gradient(to right, #eb5c24, #ed7443 30%, #f98f2a); /* Brand gradient background */
+      }
+
+      .app-stage {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        height: 100%;
+        display: grid;
+        grid-template-rows: 1fr; /* Let the remote screen take full height */
+        padding-top: env(safe-area-inset-top); /* Leave space for physical status bar area */
+        max-width: none;
+        transform: none;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+        background: linear-gradient(to right, #eb5c24, #ed7443 30%, #f98f2a); /* Brand gradient background */
+      }
+
+      .device-shell {
+        background: transparent !important;
+      }
+
+      #screen,
+      #stream {
+        background: transparent !important;
+      }
+
+      .status-slot {
+        display: none !important; /* Hide simulated HTML status bar on physical mobile screens */
+      }
+
+      .device-shell {
+        width: 100%;
+        height: 100%;
+      }
+
+      .app-status-bar {
+        padding-left: max(26px, env(safe-area-inset-left));
+        padding-right: max(26px, env(safe-area-inset-right));
+      }
+
+      #screen,
+      #stream {
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 108% !important;
+        transform: none;
+      }
+
+      .fullscreen-prompt {
+        position: absolute;
+        inset: 0;
+        z-index: 100;
+        display: grid;
+        place-items: center;
+        background: rgba(3, 7, 18, 0.95);
+        padding: 24px;
+      }
+      .fullscreen-prompt[hidden] {
+        display: none !important;
+      }
+
+
+
+      .fullscreen-card {
+        width: min(100%, 340px);
+        color: #f8fafc;
+        font: 14px/1.55 system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        text-align: center;
+      }
+
+      .fullscreen-card h2 {
+        margin: 0 0 8px;
+        font-size: 21px;
+      }
+
+      .fullscreen-card p {
+        margin: 0 0 18px;
+        color: #cbd5e1;
+      }
+
+      .fullscreen-card button {
+        width: 100%;
+        min-height: 50px;
+        border: 0;
+        border-radius: 12px;
+        background: #ff7900;
+        color: #1b0b00;
+        font: 800 16px system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+      }
+
+      .fullscreen-message {
+        min-height: 22px;
+        margin-top: 12px;
+        color: #fbbf24;
+        font-size: 12px;
+      }
+    }
+  </style>
+</head>
+
+<body data-view="app">
+  <h1 hidden>__ACCOUNT_NAME__</h1>
+  <p class="meta" hidden></p>
+
+  <div id="fullscreen-prompt" class="fullscreen-prompt" hidden>
+    <div class="fullscreen-card">
+      <h2>โหมดเต็มหน้าจอ</h2>
+      <p>กดปุ่มด้านล่างเพื่อแสดงผลเต็มหน้าจอโดยไม่แสดงแถบ URL ด้านบน</p>
+      <button id="enter-fullscreen">แสดงผลเต็มหน้าจอ</button>
+      <div id="fullscreen-message" class="fullscreen-message"></div>
+    </div>
+  </div>
+
+  <main class="app-stage">
+    <div class="status-slot">
+      <div class="app-status-bar">
+        <div class="status-left">
+          <span class="signal-icon-left">
+            <i></i><i></i><i></i><i></i>
+          </span>
+          <span id="app-status-time">00:00 น.</span>
+          <svg class="notification-icon messenger-svg" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 2C6.48 2 2 6.14 2 11.25c0 2.91 1.45 5.51 3.73 7.19.19.14.3.36.3.59v2.22c0 .49.52.8 1 .57l2.45-1.18c.18-.08.38-.1.57-.05 1.25.32 2.57.48 3.95.48 5.52 0 10-4.14 10-9.25S17.52 2 12 2zm1 12.5l-3-3.22-5.8 3.22 6.37-6.78 3 3.22 5.8-3.22-6.37 6.78z" fill="currentColor"/>
+          </svg>
+          <svg class="notification-icon line-svg" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 2C6.48 2 2 5.58 2 10c0 3.96 3.52 7.24 8.27 7.85.33.04.78.23.9.52l.46 1.4c.15.45.62.37.62.11v-2.07c0-.28.18-.54.44-.6C17.93 16.5 22 13.59 22 10c0-4.42-4.48-8-10-8zm-2.8 11.3H7.6c-.3 0-.5-.2-.5-.5s.2-.5.5-.5h1.6c.3 0 .5.2.5.5s-.2.5-.5.5zm4.8 0h-2.1c-.3 0-.5-.2-.5-.5s.2-.5.5-.5h2.1c.3 0 .5.2.5.5s-.2.5-.5.5zm3.2 0h-1.6c-.3 0-.5-.2-.5-.5s.2-.5.5-.5h1.6c.3 0 .5.2.5.5s-.2.5-.5.5z" fill="currentColor"/>
+          </svg>
+        </div>
+        <div class="status-right">
+          <span class="volte-badge">
+            <span>Vo</span>
+            <span>LTE</span>
+          </span>
+          <svg class="wifi-icon" viewBox="0 0 24 18" aria-hidden="true">
+            <path d="M12 17.5 9.3 14.8a3.8 3.8 0 0 1 5.4 0L12 17.5Zm-5.3-5.3-2.4-2.4a10.9 10.9 0 0 1 15.4 0l-2.4 2.4a7.5 7.5 0 0 0-10.6 0ZM1.8 7.3 0 5.5a17 17 0 0 1 24 0l-1.8 1.8a14.4 14.4 0 0 0-20.4 0Z" />
+          </svg>
+          <div class="battery-container">
+            <div class="battery-capsule">
+              <span id="app-status-battery">75</span>
+            </div>
+            <svg id="battery-charging-icon" class="charging-bolt" viewBox="0 0 24 24" hidden aria-hidden="true">
+              <path d="M7 2v11h3v9l7-12h-4l3-8z" fill="currentColor"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+    <textarea id="keyboard-capture" readonly class="keyboard-capture" aria-hidden="true" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
+    <section class="device-shell" id="device" tabindex="0" aria-label="DQueue app">
+      <img id="screen" alt="DQueue" draggable="false" hidden />
+      <canvas id="stream" width="900" height="1920" hidden></canvas>
+      <div class="loading" id="loading">กำลังเปิด DQueue...</div>
+      <div class="mode" id="stream-mode">Waiting</div>
+    </section>
+  </main>
+  <script src="/stream-client.js" defer></script>
+</body>
+
+</html>

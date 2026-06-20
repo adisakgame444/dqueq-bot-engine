@@ -1,0 +1,106 @@
+{
+  "name": "dqueq-bot-engine",
+  "version": "1.0.0",
+  "main": "electron/main.cjs",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev -p 5000",
+    "bot": "tsx src/telegram_commander.ts",
+    "remote:android:build": "node remote-android/build-client.mjs",
+    "remote:android": "node remote-android/server.cjs",
+    "launcher": "electron electron/main.cjs",
+    "config:encrypt": "node scripts/encrypt-env.cjs",
+    "launcher:pack": "electron-builder --win portable",
+    "build": "next build",
+    "start": "next start",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.8.0",
+    "@prisma/client": "^7.8.0",
+    "@types/node": "^25.9.2",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@yume-chan/adb": "^2.6.0",
+    "@yume-chan/adb-scrcpy": "^2.3.2",
+    "@yume-chan/adb-server-node-tcp": "^2.5.2",
+    "@yume-chan/fetch-scrcpy-server": "^1.0.0",
+    "@yume-chan/scrcpy": "^2.3.0",
+    "@yume-chan/scrcpy-decoder-webcodecs": "^2.5.3",
+    "@yume-chan/stream-extra": "^2.6.1",
+    "axios": "^1.16.1",
+    "dotenv": "^17.4.2",
+    "fast-xml-parser": "^5.8.0",
+    "next": "^16.2.6",
+    "pg": "^8.21.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "telegraf": "^4.16.3",
+    "tsx": "^4.22.3",
+    "typescript": "^6.0.3",
+    "ws": "^8.21.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.0",
+    "@types/pg": "^8.20.0",
+    "autoprefixer": "^10.5.0",
+    "electron": "^42.3.3",
+    "electron-builder": "^26.15.0",
+    "postcss": "^8.5.15",
+    "prisma": "^7.8.0",
+    "tailwindcss": "^4.3.0"
+  },
+  "build": {
+    "appId": "com.dqueq.botmanager",
+    "productName": "DQueue Bot Manager",
+    "asar": false,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "electron/**/*",
+      "remote-android/**/*",
+      "!remote-android/generated/**/*",
+        "!remote-android/*.log",
+        "!remote-android/*.png",
+        "scratch/dqueue-clone/**/*",
+        "scratch/tools/**/*",
+        "dqueue-config.enc",
+        "package.json",
+        "node_modules/@yume-chan/**/*",
+        "node_modules/ws/**/*",
+        "node_modules/dotenv/**/*",
+        "!node_modules/next/**/*",
+        "!node_modules/react/**/*",
+        "!node_modules/react-dom/**/*",
+        "!node_modules/telegraf/**/*",
+        "!node_modules/@prisma/**/*",
+        "!node_modules/prisma/**/*",
+        "!node_modules/typescript/**/*",
+        "!node_modules/@types/**/*"
+      ],
+      "extraResources": [
+        {
+          "from": "launcher-assets/cloudflared",
+          "to": "cloudflared",
+          "filter": [
+            "**/*"
+          ]
+        }
+      ],
+      "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
+  }
+}

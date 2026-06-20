@@ -1,0 +1,113 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum WebUserRole {
+  USER
+  ADMIN
+}
+
+model WebUser {
+  id           String       @id @default(uuid())
+  username     String       @unique @map("email")
+  name         String
+  passwordHash String
+  role         WebUserRole  @default(USER)
+  sessions     WebSession[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([username, role])
+}
+
+model WebSession {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  userId    String
+  user      WebUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId, expiresAt])
+}
+
+model Account {
+  id        String         @id @default(uuid())
+  email     String         @unique
+  password  String
+  tasks     CustomerTask[]
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+}
+
+model CustomerTask {
+  id           String @id @default(uuid())
+  customerName String
+  targetShopId String
+  targetLat    Float
+  targetLng    Float
+  status       String @default("PENDING") // PENDING, BOOKED, FAILED
+
+  // Link to account used for booking
+  accountId String?
+  account   Account? @relation(fields: [accountId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model GeneratedEmail {
+  id        String   @id @default(cuid())
+  email     String   @unique // อีเมลที่สุ่มได้
+  password  String // รหัสผ่านที่ใช้คู่กัน
+  note      String? // หมายเหตุ
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
+
+model BotSession {
+  id          String @id @default(uuid())
+  email       String
+  password    String
+  displayName String
+  phoneNumber String?
+
+  // 🤖 1. สถานะแอปจำลอง (ADB / BlueStacks Tracking)
+  // OFFLINE, STARTING, FILLING_FORM, AWAITING_OTP, REGISTERED
+  regStatus String @default("OFFLINE")
+
+  // 🎫 2. สถานะการทำงานคิว (Pure UI Automation)
+  // IDLE, BOOKING, WAITING_QUEUE, CALLING, COMPLETED, FAILED, CANCELLED
+  queueStatus    String  @default("IDLE")
+  targetShopName String? // ชื่อร้านที่กำลังสั่งจอง
+  currentQueue   String? // เลขคิวที่ได้
+  waitCount      Int? // จำนวนคิวที่เหลือที่ต้องรอ
+  partySize      Int?    // จำนวนคน/ที่นั่ง
+  cancelReason   String? // สาเหตุที่ยกเลิกคิว (ถ้ามี)
+
+  // 📍 3. สถานะพิกัดวาร์ป (Location Status)
+  lat            Float   @default(13.7468)
+  lng            Float   @default(100.5351)
+  zoneName       String  @default("สยาม (Siam)")
+  selectedBranch String?
+
+  // 🔑 4. Token หรือ Session Key ถ้าได้จากแอป
+  userToken String?
+
+  // 🗑️ สถานะลบ
+  isDeleted Boolean   @default(false)
+  deletedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email, regStatus, queueStatus])
+}

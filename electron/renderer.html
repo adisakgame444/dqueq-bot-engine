@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DQueue Local Agent</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f4f7fb;
+        --panel: #ffffff;
+        --ink: #0d1b2f;
+        --muted: #66758f;
+        --line: #dbe3ef;
+        --teal: #14c8b8;
+        --red: #d94848;
+        --amber: #f59f00;
+        --shadow: 0 18px 45px rgba(18, 34, 58, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(20, 200, 184, 0.16), transparent 34rem),
+          linear-gradient(180deg, #f8fbff 0%, var(--bg) 100%);
+      }
+
+      main {
+        width: min(900px, calc(100vw - 40px));
+        margin: 30px auto;
+      }
+
+      header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 20px;
+        margin-bottom: 18px;
+      }
+
+      .eyebrow {
+        margin: 0 0 6px;
+        font-size: 12px;
+        font-weight: 900;
+        letter-spacing: 0.18em;
+        color: var(--teal);
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 28px;
+        line-height: 1.15;
+      }
+
+      .subtitle {
+        margin: 6px 0 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      button {
+        border: 1px solid var(--line);
+        background: var(--panel);
+        color: var(--ink);
+        border-radius: 8px;
+        padding: 10px 14px;
+        font-weight: 800;
+        cursor: pointer;
+        box-shadow: 0 8px 18px rgba(18, 34, 58, 0.08);
+      }
+
+      button.primary {
+        background: var(--teal);
+        color: #052723;
+        border-color: transparent;
+      }
+
+      button.danger {
+        color: var(--red);
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        gap: 16px;
+      }
+
+      .card {
+        background: rgba(255, 255, 255, 0.94);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        box-shadow: var(--shadow);
+      }
+
+      .status-card {
+        padding: 18px;
+      }
+
+      .status-title {
+        margin: 0 0 14px;
+        font-size: 13px;
+        color: var(--muted);
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .status-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 12px 0;
+        border-top: 1px solid var(--line);
+      }
+
+      .status-row:first-of-type {
+        border-top: 0;
+      }
+
+      .service {
+        font-weight: 900;
+      }
+
+      .pill {
+        min-width: 86px;
+        text-align: center;
+        border-radius: 999px;
+        padding: 6px 10px;
+        font-size: 12px;
+        font-weight: 900;
+        color: #fff;
+        background: var(--muted);
+      }
+
+      .pill.running {
+        background: #0ca678;
+      }
+
+      .pill.starting {
+        background: var(--amber);
+      }
+
+      .pill.error {
+        background: var(--red);
+      }
+
+      .hint,
+      .config-note {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.55;
+      }
+
+      .hint {
+        margin: 16px 0 0;
+      }
+
+      .unlock {
+        margin-top: 16px;
+        padding-top: 16px;
+        border-top: 1px solid var(--line);
+      }
+
+      .unlock label {
+        display: block;
+        margin-bottom: 8px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .unlock-row {
+        display: flex;
+        gap: 8px;
+      }
+
+      .unlock input {
+        min-width: 0;
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 10px 11px;
+        color: var(--ink);
+        font: inherit;
+        font-size: 13px;
+      }
+
+      .unlock button {
+        box-shadow: none;
+      }
+
+      .config-note {
+        margin: 8px 0 0;
+      }
+
+      .config-note.ready {
+        color: #0ca678;
+        font-weight: 800;
+      }
+
+      .config-note.error {
+        color: var(--red);
+        font-weight: 800;
+      }
+
+      .log-card {
+        overflow: hidden;
+      }
+
+      .log-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 16px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .log-head strong {
+        font-size: 14px;
+      }
+
+      .log {
+        height: 430px;
+        overflow: auto;
+        padding: 14px 16px;
+        background: #07101f;
+        color: #dce7f7;
+        font-family: Consolas, "SFMono-Regular", monospace;
+        font-size: 12px;
+        line-height: 1.55;
+        white-space: pre-wrap;
+      }
+
+      .line {
+        margin-bottom: 8px;
+      }
+
+      .line .meta {
+        color: #7ed6df;
+      }
+
+      @media (max-width: 760px) {
+        main {
+          width: min(100vw - 24px, 900px);
+          margin: 18px auto;
+        }
+
+        header,
+        .grid {
+          display: block;
+        }
+
+        .actions {
+          justify-content: flex-start;
+          margin-top: 14px;
+        }
+
+        .status-card {
+          margin-bottom: 14px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <p class="eyebrow">DQUEUE</p>
+          <h1>DQueue Local Agent</h1>
+          <p class="subtitle">เปิดโปรแกรมนี้เพื่อรัน Remote Android และลิงก์สาธารณะจากเครื่องนี้</p>
+        </div>
+        <div class="actions">
+          <button class="primary" id="start">Start</button>
+          <button id="open-accounts">Open Accounts</button>
+          <button class="danger" id="stop">Stop</button>
+        </div>
+      </header>
+
+      <section class="grid">
+        <aside class="card status-card">
+          <p class="status-title">System Status</p>
+          <div class="status-row">
+            <span class="service">Remote Android</span>
+            <span class="pill" id="remote-status">Stopped</span>
+          </div>
+          <div class="status-row">
+            <span class="service">Public Tunnel</span>
+            <span class="pill" id="tunnel-status">Stopped</span>
+          </div>
+          <p class="hint">
+            โปรแกรมนี้รัน Remote Android ที่ <b>localhost:5100</b> และเปิด Cloudflare tunnel ให้ใช้ลิงก์สาธารณะ.
+            ถ้าเปิดไม่ได้ ให้ดูรายละเอียดใน log.
+          </p>
+
+          <div class="unlock" id="unlock-box">
+            <label for="unlock-password">Unlock password</label>
+            <div class="unlock-row">
+              <input id="unlock-password" type="password" autocomplete="off" placeholder="Enter password" />
+              <button class="primary" id="unlock">Unlock</button>
+            </div>
+            <p class="config-note" id="config-note">Checking config...</p>
+          </div>
+        </aside>
+
+        <section class="card log-card">
+          <div class="log-head">
+            <strong>Logs</strong>
+            <span class="subtitle">live output</span>
+          </div>
+          <div class="log" id="log"></div>
+        </section>
+      </section>
+    </main>
+
+    <script>
+      const labels = {
+        stopped: "Stopped",
+        starting: "Starting",
+        running: "Running",
+        error: "Error",
+      };
+
+      const remoteStatus = document.getElementById("remote-status");
+      const tunnelStatus = document.getElementById("tunnel-status");
+      const logEl = document.getElementById("log");
+      const unlockBox = document.getElementById("unlock-box");
+      const unlockPassword = document.getElementById("unlock-password");
+      const unlockButton = document.getElementById("unlock");
+      const configNote = document.getElementById("config-note");
+
+      function updatePill(el, value) {
+        el.className = `pill ${value || "stopped"}`;
+        el.textContent = labels[value] || labels.stopped;
+      }
+
+      function addLog(item) {
+        const line = document.createElement("div");
+        line.className = "line";
+        line.innerHTML = `<span class="meta">[${item.time}] ${item.source}</span> ${escapeHtml(item.message)}`;
+        logEl.appendChild(line);
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;");
+      }
+
+      window.launcher.onStatus((state) => {
+        updatePill(remoteStatus, state.remote);
+        updatePill(tunnelStatus, state.tunnel);
+      });
+
+      window.launcher.onConfigStatus((config) => {
+        if (config.ready) {
+          unlockBox.style.display = "none";
+          configNote.className = "config-note ready";
+          configNote.textContent = "Config ready";
+          return;
+        }
+
+        unlockBox.style.display = "block";
+        if (config.mode === "encrypted") {
+          configNote.className = "config-note";
+          configNote.textContent = "Encrypted config found. Unlock before starting.";
+        } else if (config.mode === "missing") {
+          configNote.className = "config-note error";
+          configNote.textContent = "Missing .env or dqueue-config.enc";
+        }
+      });
+
+      window.launcher.onLog(addLog);
+
+      document.getElementById("start").addEventListener("click", () => window.launcher.startAll());
+      document.getElementById("stop").addEventListener("click", () => window.launcher.stopAll());
+      document.getElementById("open-accounts").addEventListener("click", () => window.launcher.openAccounts());
+      unlockButton.addEventListener("click", async () => {
+        configNote.className = "config-note";
+        configNote.textContent = "Unlocking...";
+        const result = await window.launcher.unlockConfig(unlockPassword.value);
+        if (!result.ok) {
+          configNote.className = "config-note error";
+          configNote.textContent = result.error || "Unlock failed";
+          return;
+        }
+        unlockPassword.value = "";
+        window.launcher.startAll();
+      });
+      unlockPassword.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") unlockButton.click();
+      });
+
+      window.launcher.status().then((state) => {
+        updatePill(remoteStatus, state.remote);
+        updatePill(tunnelStatus, state.tunnel);
+      });
+    </script>
+  </body>
+</html>

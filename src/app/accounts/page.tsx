@@ -1,0 +1,346 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+
+type Account = {
+  id: number;
+  name: string;
+  packageName: string;
+  enabled: boolean;
+  protected?: boolean;
+  installed?: boolean;
+  session?: { state?: string } | null;
+  url: string;
+  appUrl: string;
+  appIosUrl?: string;
+};
+
+type AccountsResponse = {
+  ok: boolean;
+  busy?: boolean;
+  accounts?: Account[];
+  error?: string;
+};
+
+const AGENT_ORIGIN =
+  process.env.NEXT_PUBLIC_REMOTE_AGENT_URL || "https://remote.bothero.online";
+const PUBLIC_WEB_ORIGIN =
+  process.env.NEXT_PUBLIC_PUBLIC_WEB_URL || "";
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const response = await fetch(`${AGENT_ORIGIN.replace(/\/+$/, "")}${path}`, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+    cache: "no-store",
+  });
+  const data = (await response.json()) as T & { ok?: boolean; error?: string };
+  if (!response.ok || data.ok === false) {
+    throw new Error(data.error || `HTTP ${response.status}`);
+  }
+  return data;
+}
+
+function publicOrigin() {
+  if (PUBLIC_WEB_ORIGIN) return PUBLIC_WEB_ORIGIN.replace(/\/+$/, "");
+  if (typeof window !== "undefined") return window.location.origin;
+  return "";
+}
+
+function badge(text: string, className = "") {
+  return <span className={`badge ${className}`}>{text}</span>;
+}
+
+export default function AccountsPage() {
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState(false);
+
+  const webOrigin = useMemo(publicOrigin, []);
+
+  async function loadAccounts() {
+    try {
+      const data = await request<AccountsResponse>("/api/accounts");
+      setBusy(Boolean(data.busy));
+      setAccounts(data.accounts || []);
+      if (error) {
+        setNotice("");
+        setError(false);
+      }
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "โหลดบัญชีไม่สำเร็จ");
+      setError(true);
+    }
+  }
+
+  useEffect(() => {
+    loadAccounts();
+    const timer = window.setInterval(() => {
+      if (!busy) loadAccounts();
+    }, 5000);
+    return () => window.clearInterval(timer);
+  }, [busy]);
+
+  async function copyLink(account: Account) {
+    const link = `${webOrigin}/app-ios/${account.id}`;
+    await navigator.clipboard.writeText(link);
+    setNotice(`คัดลอกลิงก์ ${account.name} แล้ว: ${link}`);
+    setError(false);
+  }
+
+  async function perform(action: () => Promise<void>) {
+    if (busy) return;
+    setBusy(true);
+    setNotice("");
+    setError(false);
+    try {
+      await action();
+      await loadAccounts();
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "ทำรายการไม่สำเร็จ");
+      setError(true);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <main>
+      <header>
+        <div>
+          <h1>จัดการบัญชี DQueue</h1>
+          <p className="subtitle">
+            หน้าเว็บนี้อยู่บน Vercel แต่เชื่อมต่อระบบจริงผ่าน Local Agent
+          </p>
+        </div>
+        <div className="toolbar">
+          <a href="/app-ios/1" target="_blank" rel="noreferrer">
+            เปิด Account 1
+          </a>
+          <button
+            type="button"
+            className="primary"
+            disabled={busy}
+            onClick={() =>
+              perform(async () => {
+                setNotice("กำลังสร้างและติดตั้งบัญชีใหม่...");
+                const data = await request<{ ok: boolean; account: Account }>(
+                  "/api/accounts",
+                  { method: "POST", body: "{}" }
+                );
+                setNotice(`${data.account.name} พร้อมใช้งานแล้ว`);
+              })
+            }
+          >
+            + เพิ่มบัญชี
+          </button>
+        </div>
+      </header>
+
+      {notice ? (
+        <div className={`notice visible${error ? " error" : ""}`}>{notice}</div>
+      ) : null}
+
+      <section className="accounts">
+        {accounts.length ? (
+          accounts.map((account) => {
+            const sessionState = account.session?.state || "stopped";
+            const publicLink = `${webOrigin}/app-ios/${account.id}`;
+            return (
+              <article className="card" key={account.id}>
+                <div className="account-top">
+                  <h2>{account.name}</h2>
+                  <div className="badges">
+                    {badge(account.enabled ? "เปิดใช้งาน" : "ปิดใช้งาน", account.enabled ? "online" : "disabled")}
+                    {badge(account.installed ? "ติดตั้งแล้ว" : "ไม่พบแอป")}
+                    {badge(`session: ${sessionState}`)}
+                  </div>
+                </div>
+
+                <div className="details">
+                  <div className="detail-row">
+                    <span className="detail-label">หน้าแอป iOS</span>
+                    <span className="detail-value">{`${webOrigin}/app-ios/${account.id}`}</span>
+                  </div>
+                  <div className="detail-row">
+                    <span className="detail-label">หน้าแอป Android</span>
+                    <span className="detail-value">{`${webOrigin}/app/${account.id}`}</span>
+                  </div>
+                  <div className="detail-row">
+                    <span className="detail-label">ลิงก์ส่งให้คนอื่น</span>
+                    <span className="detail-value public">{publicLink}</span>
+                  </div>
+                  <div className="detail-row">
+                    <span className="detail-label">Local Agent</span>
+                    <span className="detail-value">{AGENT_ORIGIN}</span>
+                  </div>
+                  <div className="detail-row">
+                    <span className="detail-label">Package</span>
+                    <span className="detail-value">{account.packageName}</span>
+                  </div>
+                </div>
+
+                <div className="actions">
+                  <a href={`/app/${account.id}`} target="_blank" rel="noreferrer">
+                    เปิดหน้าแอป Android
+                  </a>
+                  <a href={`/app-ios/${account.id}`} target="_blank" rel="noreferrer">
+                    เปิดหน้าแอป iOS
+                  </a>
+                  <button type="button" disabled={busy} onClick={() => copyLink(account)}>
+                    คัดลอกลิงก์ส่งให้คนอื่น
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      perform(async () => {
+                        await request(`/api/accounts/${account.id}`, {
+                          method: "PATCH",
+                          body: JSON.stringify({ enabled: !account.enabled }),
+                        });
+                        setNotice(`${account.enabled ? "ปิด" : "เปิด"} ${account.name} แล้ว`);
+                      })
+                    }
+                  >
+                    {account.enabled ? "ปิดใช้งาน" : "เปิดใช้งาน"}
+                  </button>
+                  {!account.protected ? (
+                    <button
+                      type="button"
+                      className="danger"
+                      disabled={busy}
+                      onClick={() => {
+                        const required = `DELETE ACCOUNT ${account.id}`;
+                        const confirmation = window.prompt(
+                          `พิมพ์ ${required} เพื่อยืนยันการลบ`
+                        );
+                        if (confirmation !== required) return;
+                        perform(async () => {
+                          await request(`/api/accounts/${account.id}`, {
+                            method: "DELETE",
+                            body: JSON.stringify({ confirm: confirmation }),
+                          });
+                          setNotice(`ลบ ${account.name} แล้ว`);
+                        });
+                      }}
+                    >
+                      ลบถาวร
+                    </button>
+                  ) : null}
+                </div>
+              </article>
+            );
+          })
+        ) : (
+          <div className="empty">กำลังโหลดรายการบัญชี...</div>
+        )}
+      </section>
+
+      <style>{`
+        :global(body) {
+          margin: 0;
+          min-height: 100vh;
+          background: radial-gradient(circle at 20% 0%, rgba(255, 111, 0, 0.16), transparent 32rem), #080b12;
+          color: #f8fafc;
+        }
+        main {
+          width: min(1120px, calc(100vw - 28px));
+          margin: 0 auto;
+          padding: 28px 0 48px;
+          font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        }
+        header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 16px;
+          margin-bottom: 20px;
+        }
+        h1 { margin: 0; font-size: 24px; }
+        .subtitle { margin: 6px 0 0; color: #94a3b8; font-size: 13px; }
+        button, a {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid #2b3749;
+          border-radius: 10px;
+          min-height: 40px;
+          padding: 0 14px;
+          color: #cbd5e1;
+          background: #172033;
+          text-decoration: none;
+          font: inherit;
+          font-weight: 800;
+          white-space: nowrap;
+          cursor: pointer;
+        }
+        button:hover, a:hover { border-color: #ff8a1f; background: #202b40; }
+        button:disabled { cursor: wait; opacity: 0.55; }
+        .primary { border-color: #ff7900; background: #ff7900; color: #1b0b00; }
+        .danger { border-color: #7f1d1d; background: #3f1118; color: #fecaca; }
+        .toolbar, .actions, .badges { display: flex; flex-wrap: wrap; gap: 8px; }
+        .notice {
+          margin-bottom: 16px;
+          border: 1px solid #334155;
+          border-radius: 12px;
+          padding: 12px 14px;
+          background: #111827;
+          color: #cbd5e1;
+          font-size: 13px;
+          line-height: 1.6;
+        }
+        .notice.error { border-color: #7f1d1d; color: #fecaca; }
+        .accounts { display: grid; gap: 12px; }
+        .card {
+          border: 1px solid #202a39;
+          border-radius: 16px;
+          padding: 18px;
+          background: rgba(15, 20, 30, 0.92);
+          box-shadow: 0 16px 42px rgba(0, 0, 0, 0.25);
+        }
+        .account-top {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 14px;
+        }
+        .card h2 { margin: 0; font-size: 17px; }
+        .details { display: grid; gap: 6px; margin: 14px 0 0; color: #94a3b8; font-size: 12px; }
+        .detail-row { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 12px; align-items: start; }
+        .detail-label { color: #64748b; font-weight: 800; }
+        .detail-value { color: #bfdbfe; overflow-wrap: anywhere; }
+        .detail-value.public { color: #fbbf24; font-weight: 800; }
+        .badge {
+          border: 1px solid #334155;
+          border-radius: 999px;
+          padding: 4px 8px;
+          color: #cbd5e1;
+          font-size: 11px;
+          font-weight: 800;
+        }
+        .badge.online { border-color: #166534; color: #86efac; }
+        .badge.disabled { border-color: #92400e; color: #fcd34d; }
+        .badges { justify-content: flex-end; }
+        .actions {
+          justify-content: flex-start;
+          margin-top: 16px;
+          padding-top: 14px;
+          border-top: 1px solid #202a39;
+        }
+        .empty { color: #94a3b8; text-align: center; padding: 50px 0; }
+        @media (max-width: 700px) {
+          header, .account-top { display: block; }
+          .toolbar, .actions { margin-top: 14px; }
+          .badges { justify-content: flex-start; margin-top: 10px; }
+          .detail-row { grid-template-columns: 1fr; gap: 2px; }
+          button, a { width: 100%; }
+        }
+      `}</style>
+    </main>
+  );
+}
+

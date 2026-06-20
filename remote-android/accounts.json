@@ -1,0 +1,32 @@
+{
+  "accounts": [
+    {
+      "id": 1,
+      "name": "Account 1",
+      "packageName": "me.deltaqueue.dqueue",
+      "enabled": true,
+      "protected": true
+    },
+    {
+      "id": 2,
+      "name": "Account 2",
+      "packageName": "me.deltaqueue.dqueue.account2",
+      "enabled": true,
+      "protected": false
+    },
+    {
+      "id": 3,
+      "name": "Account 3",
+      "packageName": "me.deltaqueue.dqueue.account3",
+      "enabled": true,
+      "protected": false
+    },
+    {
+      "id": 4,
+      "name": "Account 4",
+      "packageName": "me.deltaqueue.dqueue.account4",
+      "enabled": true,
+      "protected": false
+    }
+  ]
+}

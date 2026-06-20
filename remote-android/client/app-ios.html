@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="th">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#eb5c24" />
+  <meta name="application-name" content="__ACCOUNT_NAME__" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="__ACCOUNT_NAME__" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="format-detection" content="telephone=no" />
+  <script>
+    (() => {
+      const APP_COLOR = "#eb5c24";
+      const lockThemeColor = () => {
+        let metas = Array.from(document.querySelectorAll('meta[name="theme-color"]'));
+        if (metas.length === 0) {
+          const meta = document.createElement("meta");
+          meta.name = "theme-color";
+          document.head.appendChild(meta);
+          metas = [meta];
+        }
+        for (const meta of metas) meta.setAttribute("content", APP_COLOR);
+
+        const statusMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+        if (statusMeta) statusMeta.setAttribute("content", "default");
+      };
+      lockThemeColor();
+      document.addEventListener("DOMContentLoaded", lockThemeColor);
+      window.addEventListener("pageshow", lockThemeColor);
+      window.setTimeout(lockThemeColor, 0);
+    })();
+  </script>
+  <link rel="manifest" href="/manifest.json" />
+  <title>__ACCOUNT_NAME__</title>
+  <style>
+    :root {
+      color-scheme: light;
+      background: #eb5c24;
+      --app-height: 100vh;
+      --app-safe-top: env(safe-area-inset-top, 0px);
+      --app-stage-height: var(--app-height);
+      --app-status-color: #eb5c24;
+      --ios-top-crop: 0px;
+      --ios-bottom-overscan: 140px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background: #eb5c24 !important;
+      overflow: hidden;
+    }
+
+    body {
+      width: 100%;
+      height: var(--app-stage-height);
+      min-height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      overscroll-behavior: none;
+      background: #030712 !important;
+      position: fixed;
+      inset: 0;
+      min-height: var(--app-height);
+      display: grid;
+      place-items: center;
+    }
+
+    .app-stage {
+      position: fixed;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      display: grid;
+      grid-template-rows: 1fr;
+      width: auto;
+      height: var(--app-height);
+      min-height: 0;
+      max-width: none;
+      padding-top: 0;
+      aspect-ratio: auto;
+      overflow: hidden;
+      border: 0;
+      border-radius: 0;
+      background: #eb5c24;
+      box-shadow: none;
+    }
+
+
+    .device-shell {
+      position: relative;
+      width: 100%;
+      height: calc(100% + var(--ios-bottom-overscan));
+      min-height: 0;
+      overflow: hidden;
+      background: #eb5c24;
+      touch-action: none;
+      user-select: none;
+      outline: none;
+    }
+
+    #screen,
+    #stream {
+      position: absolute;
+      top: 0;
+      left: 0;
+      display: block;
+      width: 100%;
+      height: 100%;
+      background: #030712;
+      object-fit: contain;
+      object-position: center 1px;
+      transform: none;
+      filter: none !important;
+      box-shadow: none !important;
+    }
+
+    #screen {
+      -webkit-user-drag: none;
+    }
+
+    .status-slot {
+      display: none !important;
+    }
+
+    .safe-area-spacer {
+      display: none !important;
+    }
+
+    .app-status-bar {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      color: #fff;
+      font: 600 12px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+      pointer-events: none;
+    }
+
+    .status-left,
+    .status-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .ios-time-pill {
+      background-color: #22c55e; /* Green capsule from screenshot */
+      color: #ffffff;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: -0.1px;
+      display: none !important; /* Hidden as requested */
+      align-items: center;
+      justify-content: center;
+      min-width: 46px;
+    }
+
+    .ios-cellular {
+      display: inline-flex;
+      align-items: flex-end;
+      gap: 1.5px;
+      height: 10px;
+    }
+
+    .ios-cellular i {
+      width: 2.2px;
+      background: currentColor;
+      border-radius: 0.6px;
+    }
+
+    .ios-cellular i:nth-child(1) { height: 3px; }
+    .ios-cellular i:nth-child(2) { height: 5.2px; }
+    .ios-cellular i:nth-child(3) { height: 7.5px; }
+    .ios-cellular i:nth-child(4) { height: 10px; }
+
+    .wifi-icon {
+      width: 14px;
+      height: 11px;
+      fill: currentColor;
+    }
+
+    .battery-container-ios {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .battery-pill-ios {
+      position: relative;
+      width: 25px;
+      height: 12.5px;
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      border-radius: 3px;
+      display: flex;
+      align-items: center;
+      padding: 0.8px;
+    }
+
+    .battery-pill-ios::after {
+      content: "";
+      position: absolute;
+      right: -2px;
+      top: 3.5px;
+      width: 1.5px;
+      height: 4.5px;
+      background: rgba(255, 255, 255, 0.45);
+      border-radius: 0 1px 1px 0;
+    }
+
+    .battery-level-ios {
+      height: 100%;
+      background-color: #22c55e;
+      border-radius: 1.5px;
+      width: 99%;
+      transition: width 0.3s ease, background-color 0.3s ease;
+    }
+
+    .battery-percentage-ios {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 7px;
+      font-weight: 800;
+      color: #ffffff;
+      line-height: 1;
+    }
+
+    .charging-bolt-ios {
+      width: 9px;
+      height: 11px;
+      fill: #fbbf24;
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    .loading {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      color: #94a3b8;
+      background: #030712;
+      font: 13px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+        sans-serif;
+      text-align: center;
+      pointer-events: none;
+    }
+
+    body[data-view="app-ios"] .loading {
+      display: none !important;
+    }
+
+    .mode,
+    .keyboard-capture {
+      position: fixed;
+      left: -10000px;
+      top: 0;
+      width: 1px;
+      height: 1px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .fullscreen-prompt {
+      display: none;
+    }
+
+    @media (min-width: 901px) and (hover: hover) and (pointer: fine) {
+      .app-stage {
+        position: relative;
+        inset: auto;
+        width: min(410px, calc((100dvh - 24px) * 900 / 1920));
+        height: auto;
+        max-width: calc(100vw - 24px);
+        padding-top: 0;
+        aspect-ratio: 900 / 1920;
+        border: 1px solid #202a39;
+        border-radius: 38px;
+        box-shadow: none;
+      }
+
+      #screen,
+      #stream {
+        height: 100%;
+      }
+    }
+
+    @media (max-width: 900px),
+    (hover: none) and (pointer: coarse) {
+
+      :root {
+        color-scheme: light !important;
+        background: #eb5c24 !important;
+      }
+
+      html {
+        color-scheme: light !important;
+        background: #eb5c24 !important;
+      }
+
+      body {
+        height: 100% !important;
+        place-items: start center;
+        background: #030712 !important;
+        position: fixed;
+        inset: 0;
+      }
+
+      .app-stage {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100% !important;
+        background: #030712;
+      }
+
+      .app-stage::before {
+        display: none !important;
+      }
+
+      .safe-area-spacer {
+        display: none;
+      }
+
+      .device-shell {
+        background: #eb5c24 !important;
+      }
+
+      #screen,
+      #stream {
+        background: #eb5c24 !important;
+      }
+
+      .status-slot {
+        display: none !important;
+      }
+
+      .device-shell {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        overflow: hidden !important;
+        background: #eb5c24 !important;
+      }
+
+      .app-status-bar {
+        padding-left: max(26px, env(safe-area-inset-left));
+        padding-right: max(26px, env(safe-area-inset-right));
+      }
+
+      #screen,
+      #stream {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100% !important;
+        object-fit: contain !important;
+        object-position: center 1px !important;
+        transform: none;
+        filter: none !important;
+        box-shadow: none !important;
+      }
+
+      .fullscreen-prompt {
+        display: none !important;
+      }
+      .fullscreen-prompt[hidden] {
+        display: none !important;
+      }
+
+      .fullscreen-card {
+        width: min(100%, 340px);
+        color: #f8fafc;
+        font: 14px/1.55 system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        text-align: center;
+      }
+
+      .fullscreen-card h2 {
+        margin: 0 0 8px;
+        font-size: 21px;
+      }
+
+      .fullscreen-card p {
+        margin: 0 0 18px;
+        color: #cbd5e1;
+      }
+
+      .fullscreen-card button {
+        width: 100%;
+        min-height: 50px;
+        border: 0;
+        border-radius: 12px;
+        background: #eb5e28;
+        color: #fff;
+        font: 800 16px system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+      }
+
+      .fullscreen-message {
+        min-height: 22px;
+        margin-top: 12px;
+        color: #fbbf24;
+        font-size: 12px;
+      }
+    }
+  </style>
+</head>
+
+<body data-view="app-ios">
+  <h1 hidden>__ACCOUNT_NAME__</h1>
+  <p class="meta" hidden></p>
+  <script>
+    (() => {
+      const setViewportVars = () => {
+        const viewport = window.visualViewport;
+        const standalone =
+          window.navigator.standalone === true ||
+          window.matchMedia("(display-mode: standalone)").matches;
+        const height = Math.max(
+          window.innerHeight || 0,
+          document.documentElement.clientHeight || 0,
+          viewport?.height || 0,
+          standalone ? window.screen?.height || 0 : 0
+        );
+        document.documentElement.style.setProperty("--app-height", `${height}px`);
+      };
+      setViewportVars();
+      window.addEventListener("resize", setViewportVars);
+      window.addEventListener("orientationchange", setViewportVars);
+      window.visualViewport?.addEventListener("resize", setViewportVars);
+      window.visualViewport?.addEventListener("scroll", setViewportVars);
+    })();
+  </script>
+
+  <div id="fullscreen-prompt" class="fullscreen-prompt" hidden>
+    <div class="fullscreen-card">
+      <h2>โหมดเต็มหน้าจอ</h2>
+      <p>กดปุ่มด้านล่างเพื่อแสดงผลเต็มหน้าจอโดยไม่แสดงแถบ URL ด้านบน</p>
+      <button id="enter-fullscreen">แสดงผลเต็มหน้าจอ</button>
+      <div id="fullscreen-message" class="fullscreen-message"></div>
+    </div>
+  </div>
+
+  <main class="app-stage">
+    <div class="status-slot">
+      <div class="app-status-bar">
+        <div class="status-left">
+          <span id="app-status-time" class="ios-time-pill">00:00</span>
+        </div>
+        <div class="status-right">
+          <span class="ios-cellular">
+            <i></i><i></i><i></i><i></i>
+          </span>
+          <svg class="wifi-icon" viewBox="0 0 24 18" aria-hidden="true">
+            <path d="M12 17.5 9.3 14.8a3.8 3.8 0 0 1 5.4 0L12 17.5Zm-5.3-5.3-2.4-2.4a10.9 10.9 0 0 1 15.4 0l-2.4 2.4a7.5 7.5 0 0 0-10.6 0ZM1.8 7.3 0 5.5a17 17 0 0 1 24 0l-1.8 1.8a14.4 14.4 0 0 0-20.4 0Z" />
+          </svg>
+          <div class="battery-container-ios">
+            <div class="battery-pill-ios">
+              <span id="app-status-battery" class="battery-percentage-ios">99</span>
+              <div class="battery-level-ios" id="ios-battery-fill" style="width: 99%;"></div>
+            </div>
+            <svg id="battery-charging-icon" class="charging-bolt-ios" viewBox="0 0 24 24" hidden aria-hidden="true">
+              <path d="M7 2v11h3v9l7-12h-4l3-8z" fill="currentColor"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="safe-area-spacer"></div>
+    <textarea id="keyboard-capture" readonly class="keyboard-capture" aria-hidden="true" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
+    <section class="device-shell" id="device" tabindex="0" aria-label="DQueue app">
+      <img id="screen" alt="DQueue" draggable="false" hidden />
+      <canvas id="stream" width="900" height="1920" hidden></canvas>
+      <div class="loading" id="loading">กำลังเปิด DQueue...</div>
+      <div class="mode" id="stream-mode">Waiting</div>
+    </section>
+  </main>
+  <script src="/stream-client.js?v=114" defer></script>
+</body>
+
+</html>
