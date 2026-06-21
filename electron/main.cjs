@@ -201,8 +201,9 @@ async function startWeb() {
   log("web", "กำลังรัน Next local server");
 
   const nextCli = path.join(rootDir, "node_modules", "next", "dist", "bin", "next");
+  const nextArgs = app.isPackaged ? ["start", "-p", "5000"] : ["dev", "-p", "5000"];
   try {
-    webProcess = nodeCommand(nextCli, ["dev", "-p", "5000"]);
+    webProcess = nodeCommand(nextCli, nextArgs);
   } catch (error) {
     log("web", error.message);
     setStatus("web", "stopped");
@@ -402,6 +403,8 @@ async function startAll() {
   if (!loadRuntimeEnv()) return;
   await startRemote();
   startTunnel();
+  await startWeb();
+  startBot();
 }
 
 function stopProcess(child, source) {

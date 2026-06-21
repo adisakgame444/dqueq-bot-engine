@@ -301,6 +301,14 @@
             <span class="service">Public Tunnel</span>
             <span class="pill" id="tunnel-status">Stopped</span>
           </div>
+          <div class="status-row">
+            <span class="service">Next.js Web App</span>
+            <span class="pill" id="web-status">Stopped</span>
+          </div>
+          <div class="status-row">
+            <span class="service">Telegram Bot</span>
+            <span class="pill" id="bot-status">Stopped</span>
+          </div>
           <p class="hint">
             โปรแกรมนี้รัน Remote Android ที่ <b>localhost:5100</b> และเปิด Cloudflare tunnel ให้ใช้ลิงก์สาธารณะ.
             ถ้าเปิดไม่ได้ ให้ดูรายละเอียดใน log.
@@ -336,6 +344,8 @@
 
       const remoteStatus = document.getElementById("remote-status");
       const tunnelStatus = document.getElementById("tunnel-status");
+      const webStatus = document.getElementById("web-status");
+      const botStatus = document.getElementById("bot-status");
       const logEl = document.getElementById("log");
       const unlockBox = document.getElementById("unlock-box");
       const unlockPassword = document.getElementById("unlock-password");
@@ -365,6 +375,8 @@
       window.launcher.onStatus((state) => {
         updatePill(remoteStatus, state.remote);
         updatePill(tunnelStatus, state.tunnel);
+        updatePill(webStatus, state.web);
+        updatePill(botStatus, state.bot);
       });
 
       window.launcher.onConfigStatus((config) => {
@@ -409,6 +421,8 @@
       window.launcher.status().then((state) => {
         updatePill(remoteStatus, state.remote);
         updatePill(tunnelStatus, state.tunnel);
+        updatePill(webStatus, state.web);
+        updatePill(botStatus, state.bot);
       });
     </script>
   </body>
