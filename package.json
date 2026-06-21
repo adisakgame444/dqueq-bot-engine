@@ -11,7 +11,7 @@
     "launcher": "electron electron/main.cjs",
     "config:encrypt": "node scripts/encrypt-env.cjs",
     "launcher:pack": "electron-builder --win portable",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
