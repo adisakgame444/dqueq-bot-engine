@@ -1,0 +1,3 @@
+https://www.googleapis.com/auth/googleplay
+https://android.googleapis.com/auth/devicekey
+https://www.googleapis.com/auth/chromesync

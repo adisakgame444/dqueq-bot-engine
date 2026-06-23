@@ -8,6 +8,10 @@ const { buildClone } = require("./clone-builder.cjs");
 
 const HOST = process.env.REMOTE_ANDROID_HOST || "127.0.0.1";
 const PORT = Number(process.env.REMOTE_ANDROID_PORT || "5100");
+const DATA_DIR = process.env.DQUEUE_DATA_DIR || path.resolve(__dirname, "..");
+const PUBLIC_TUNNEL_FILE =
+  process.env.DQUEUE_PUBLIC_TUNNEL_FILE ||
+  path.join(DATA_DIR, "public-tunnel.json");
 const ADB_PATH =
   process.env.ADB_PATH || "C:\\Program Files\\BlueStacks_nxt\\HD-Adb.exe";
 const DEVICE = process.env.ANDROID_DEVICE || "127.0.0.1:5556";
@@ -24,6 +28,7 @@ const ACCOUNTS_CLIENT_FILE = path.join(
   "accounts.html"
 );
 const CLIENT_SCRIPT_FILE = path.join(__dirname, "client", "stream-client.js");
+const SW_FILE = path.join(__dirname, "client", "sw.js");
 const ACCOUNTS_SCRIPT_FILE = path.join(
   __dirname,
   "client",
@@ -184,6 +189,58 @@ function integer(value, min, max, name) {
   return String(Math.round(Math.min(max, Math.max(min, number))));
 }
 
+function readPublicTunnelOrigin() {
+  try {
+    const payload = JSON.parse(fs.readFileSync(PUBLIC_TUNNEL_FILE, "utf8"));
+    const url = String(payload.url || "").trim().replace(/\/+$/, "");
+    if (/^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/i.test(url)) return url;
+    if (/^https:\/\/[a-z0-9.-]+$/i.test(url)) return url;
+  } catch {
+    // The tunnel may still be starting. Local URLs remain available.
+  }
+  return "";
+}
+
+const iconCache = new Map();
+function generatePngIcon(size) {
+  const key = size;
+  if (iconCache.has(key)) return iconCache.get(key);
+  const { deflateSync } = require("zlib");
+  const r = 0xeb, g = 0x5c, b = 0x24;
+  const rowLen = 1 + size * 4;
+  const raw = Buffer.alloc(rowLen * size);
+  for (let y = 0; y < size; y++) {
+    const offset = y * rowLen;
+    raw[offset] = 0;
+    for (let x = 0; x < size; x++) {
+      const px = offset + 1 + x * 4;
+      raw[px] = r; raw[px + 1] = g; raw[px + 2] = b; raw[px + 3] = 255;
+    }
+  }
+  const compressed = deflateSync(raw);
+  function crc32(buf) {
+    let c = 0xffffffff;
+    for (let i = 0; i < buf.length; i++) {
+      c ^= buf[i];
+      for (let j = 0; j < 8; j++) c = (c >>> 1) ^ (c & 1 ? 0xedb88320 : 0);
+    }
+    return (c ^ 0xffffffff) >>> 0;
+  }
+  function chunk(type, data) {
+    const typeData = Buffer.concat([Buffer.from(type), data]);
+    const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
+    const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(typeData));
+    return Buffer.concat([len, typeData, crc]);
+  }
+  const sig = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(size, 0); ihdr.writeUInt32BE(size, 4);
+  ihdr[8] = 8; ihdr[9] = 6; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
+  const png = Buffer.concat([sig, chunk("IHDR", ihdr), chunk("IDAT", compressed), chunk("IEND", Buffer.alloc(0))]);
+  iconCache.set(key, png);
+  return png;
+}
+
 async function isPackageInstalled(packageName) {
   return adb(["shell", "pm", "path", packageName])
     .then((output) => String(output).includes("package:"))
@@ -192,15 +249,24 @@ async function isPackageInstalled(packageName) {
 
 async function accountDetails(relay) {
   const accounts = accountStore.listAccounts();
+  const publicOrigin = readPublicTunnelOrigin();
   return Promise.all(
-    accounts.map(async (account) => ({
-      ...account,
-      installed: await isPackageInstalled(account.packageName),
-      session: relay.getSession(account.id)?.getState() || null,
-      url: `/account/${account.id}`,
-      appUrl: `/app/${account.id}`,
-      appIosUrl: `/app-ios/${account.id}`,
-    }))
+    accounts.map(async (account) => {
+      const url = `/account/${account.id}`;
+      const appUrl = `/app/${account.id}`;
+      const appIosUrl = `/app-ios/${account.id}`;
+      return {
+        ...account,
+        installed: await isPackageInstalled(account.packageName),
+        session: relay.getSession(account.id)?.getState() || null,
+        url,
+        appUrl,
+        appIosUrl,
+        publicUrl: publicOrigin ? `${publicOrigin}${url}` : "",
+        publicAppUrl: publicOrigin ? `${publicOrigin}${appUrl}` : "",
+        publicAppIosUrl: publicOrigin ? `${publicOrigin}${appIosUrl}` : "",
+      };
+    })
   );
 }
 
@@ -254,6 +320,10 @@ const server = http.createServer(async (req, res) => {
         background_color: "#eb5c24",
         theme_color: "#eb5c24",
         orientation: "portrait",
+        icons: [
+          { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any maskable" },
+          { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any maskable" },
+        ],
       };
       sendJson(res, 200, manifest);
       return;
@@ -365,6 +435,7 @@ const server = http.createServer(async (req, res) => {
       sendJson(res, 200, {
         ok: true,
         busy: Boolean(accountOperation),
+        publicOrigin: readPublicTunnelOrigin(),
         accounts: await accountDetails(relay),
       });
       return;
@@ -432,6 +503,30 @@ const server = http.createServer(async (req, res) => {
         ok: true,
         message: `Account ${id} was deleted from Android`,
       });
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/sw.js") {
+      const script = fs.readFileSync(SW_FILE);
+      res.writeHead(200, {
+        "Content-Type": "text/javascript; charset=utf-8",
+        "Content-Length": script.length,
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Service-Worker-Allowed": "/",
+      });
+      res.end(script);
+      return;
+    }
+
+    if (req.method === "GET" && /^\/icon-(192|512)\.png$/.test(url.pathname)) {
+      const size = Number(url.pathname.match(/\d+/)[0]);
+      const png = generatePngIcon(size);
+      res.writeHead(200, {
+        "Content-Type": "image/png",
+        "Content-Length": png.length,
+        "Cache-Control": "public, max-age=86400",
+      });
+      res.end(png);
       return;
     }
 

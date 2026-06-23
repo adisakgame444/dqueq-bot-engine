@@ -82,7 +82,7 @@
       z-index: 3;
       width: 100%;
       height: 100%;
-      background: linear-gradient(to right, #eb5c24, #ed7443 30%, #f98f2a);
+      background: linear-gradient(to right, #eb5c24, #f98f2a);
     }
 
     .app-status-bar {
@@ -239,7 +239,7 @@
       body {
         height: 100%;
         place-items: start center;
-        background: linear-gradient(to right, #eb5c24, #ed7443 30%, #f98f2a); /* Brand gradient background */
+        background: linear-gradient(to right, #eb5c24, #f98f2a); /* Brand gradient background */
       }
 
       .app-stage {
@@ -251,14 +251,14 @@
         width: 100%;
         height: 100%;
         display: grid;
-        grid-template-rows: 1fr; /* Let the remote screen take full height */
-        padding-top: env(safe-area-inset-top); /* Leave space for physical status bar area */
+        grid-template-rows: 78fr 1920fr; /* Let simulated status bar take 78fr and remote screen take 1920fr */
+        padding-top: calc(env(safe-area-inset-top, 0px) - 5px); /* Shift up by 5px */
         max-width: none;
         transform: none;
         border: 0;
         border-radius: 0;
         box-shadow: none;
-        background: linear-gradient(to right, #eb5c24, #ed7443 30%, #f98f2a); /* Brand gradient background */
+        background: linear-gradient(to right, #eb5c24, #f98f2a); /* Brand gradient background */
       }
 
       .device-shell {
@@ -268,10 +268,6 @@
       #screen,
       #stream {
         background: transparent !important;
-      }
-
-      .status-slot {
-        display: none !important; /* Hide simulated HTML status bar on physical mobile screens */
       }
 
       .device-shell {
@@ -289,7 +285,7 @@
         top: 0;
         left: 0;
         width: 100%;
-        height: 108% !important;
+        height: 100% !important;
         transform: none;
       }
 
@@ -403,6 +399,11 @@
     </section>
   </main>
   <script src="/stream-client.js" defer></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {});
+    }
+  </script>
 </body>
 
 </html>

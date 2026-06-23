@@ -67,6 +67,7 @@
       "!remote-android/generated/**/*",
       "!remote-android/*.log",
       "!remote-android/*.png",
+      "!remote-android/cloudflared*.yml",
       "src/**/*",
       "prisma/**/*",
       ".next/**/*",
@@ -95,7 +96,7 @@
         "from": "launcher-assets/cloudflared",
         "to": "cloudflared",
         "filter": [
-          "**/*"
+          "cloudflared.exe"
         ]
       }
     ],

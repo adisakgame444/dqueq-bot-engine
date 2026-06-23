@@ -1,0 +1,216 @@
+Text: "DQueue" -> Center: {x: 450, y: 818}
+Text: "member_dqueue_885722" -> Center: {x: 772, y: 99}
+Text: "NaN / 2" -> Center: {x: 450, y: 293}
+Text: "dq005" -> Center: {x: 450, y: 293}
+Text: "NaN / 2" -> Center: {x: 855, y: 293}
+Text: "dq006" -> Center: {x: 855, y: 293}
+Text: "ไม่ชัดเจน" -> Center: {x: 450, y: 190}
+Text: "เลือกหมวดหมู่" -> Center: {x: 267, y: 479}
+Text: "ร้านอาหาร" -> Center: {x: 180, y: 600}
+Text: "ร้านอาหาร" -> Center: {x: 180, y: 669}
+Text: "คลินิก" -> Center: {x: 360, y: 600}
+Text: "คลินิก" -> Center: {x: 360, y: 669}
+Text: "เสริมสวย" -> Center: {x: 540, y: 600}
+Text: "เสริมสวย" -> Center: {x: 540, y: 669}
+Text: "อื่นๆ" -> Center: {x: 720, y: 600}
+Text: "อื่นๆ" -> Center: {x: 720, y: 669}
+Text: "เลือกจองคิวเลย" -> Center: {x: 264, y: 880}
+Text: "ร้านใกล้คุณ" -> Center: {x: 217, y: 920}
+Text: "ซีถา อาม่า 西塔老太太 Xita Ama" -> Center: {x: 447, y: 1011}
+Text: "เซ็นทรัลเวิลด์ ชั้น 7 โซน เอ" -> Center: {x: 447, y: 1050}
+Text: "0.4 km" -> Center: {x: 312, y: 1092}
+Text: "รออยู่" -> Center: {x: 741, y: 1012}
+Text: "0" -> Center: {x: 741, y: 1054}
+Text: "คิว" -> Center: {x: 741, y: 1093}
+Text: "Nong Geng Ji" -> Center: {x: 447, y: 1190}
+Text: "Central World ชั้น 7" -> Center: {x: 447, y: 1228}
+Text: "0.5 km" -> Center: {x: 312, y: 1271}
+Text: "รออยู่" -> Center: {x: 741, y: 1189}
+Text: "0" -> Center: {x: 741, y: 1231}
+Text: "คิว" -> Center: {x: 741, y: 1271}
+Text: "HOTPOTMAN สาทร" -> Center: {x: 447, y: 1368}
+Text: "สาขาสาทร" -> Center: {x: 447, y: 1406}
+Text: "4.5 km" -> Center: {x: 312, y: 1448}
+Text: "รออยู่" -> Center: {x: 740, y: 1367}
+Text: "352" -> Center: {x: 741, y: 1409}
+Text: "คิว" -> Center: {x: 740, y: 1450}
+Text: "Shimi shabu ประดิพัทธ์" -> Center: {x: 447, y: 1545}
+Text: "ซอย ประดิพัทธ์ 19" -> Center: {x: 447, y: 1583}
+Text: "5.1 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 741, y: 1544}
+Text: "0" -> Center: {x: 741, y: 1574}
+Text: "คิว" -> Center: {x: 0, y: 0}
+Text: "เรียวตะ ชาบู" -> Center: {x: 0, y: 0}
+Text: "เรียวตะ ชาบู" -> Center: {x: 0, y: 0}
+Text: "5.8 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 0, y: 0}
+Text: "0" -> Center: {x: 0, y: 0}
+Text: "คิว" -> Center: {x: 0, y: 0}
+Text: "Park Terrace" -> Center: {x: 0, y: 0}
+Text: "ห้วยขวาง" -> Center: {x: 0, y: 0}
+Text: "5.8 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 0, y: 0}
+Text: "0" -> Center: {x: 0, y: 0}
+Text: "คิว" -> Center: {x: 0, y: 0}
+Text: "HOTPOTMAN ห้วยขวาง" -> Center: {x: 0, y: 0}
+Text: "สาขาห้วยขวาง" -> Center: {x: 0, y: 0}
+Text: "6.1 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 0, y: 0}
+Text: "546" -> Center: {x: 0, y: 0}
+Text: "คิว" -> Center: {x: 0, y: 0}
+Text: "KARAMIZU" -> Center: {x: 0, y: 0}
+Text: "central pinklao fl. 5" -> Center: {x: 0, y: 0}
+Text: "7.3 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 0, y: 0}
+Text: "0" -> Center: {x: 0, y: 0}
+Text: "คิว" -> Center: {x: 0, y: 0}
+Text: "Shabubomb สาขาจรัญสนิทวงศ์ (ตลาดไชยทิศ)" -> Center: {x: 0, y: 0}
+Text: "ตลาดไชยทิศ" -> Center: {x: 0, y: 0}
+Text: "7.9 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 0, y: 0}
+Text: "0" -> Center: {x: 0, y: 0}
+Text: "คิว" -> Center: {x: 0, y: 0}
+Text: "ฮ้อน บุฟเฟ่ต์" -> Center: {x: 0, y: 0}
+Text: "ปากซอยรพ.เจ้าพระยา" -> Center: {x: 0, y: 0}
+Text: "8.1 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 0, y: 0}
+Text: "0" -> Center: {x: 0, y: 0}
+Text: "คิว" -> Center: {x: 0, y: 0}
+Text: "HOTPOTMAN พรานนกตัดใหม่" -> Center: {x: 0, y: 0}
+Text: "สาขาพรานนก" -> Center: {x: 0, y: 0}
+Text: "9.0 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 0, y: 0}
+Text: "254" -> Center: {x: 0, y: 0}
+Text: "คิว" -> Center: {x: 0, y: 0}
+Text: "About Beef" -> Center: {x: 0, y: 0}
+Text: "สี่แยกประชานุกูล" -> Center: {x: 0, y: 0}
+Text: "9.4 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 0, y: 0}
+Text: "0" -> Center: {x: 0, y: 0}
+Text: "คิว" -> Center: {x: 0, y: 0}
+Text: "สามก๊กสุกี้ สาขารัชโยธิน" -> Center: {x: 0, y: 0}
+Text: "Box Space" -> Center: {x: 0, y: 0}
+Text: "9.9 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 0, y: 0}
+Text: "4" -> Center: {x: 0, y: 0}
+Text: "คิว" -> Center: {x: 0, y: 0}
+Text: "Shabubomb พระราม5" -> Center: {x: 0, y: 0}
+Text: "168/2 หมู่ 2 ยูนิต 2 ถนนนครอินทร์ ต.บางศรีทอง อ.บางกรวย จ.นนทบุรี 1113" -> Center: {x: 0, y: 0}
+Text: "10.6 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 0, y: 0}
+Text: "0" -> Center: {x: 0, y: 0}
+Text: "คิว" -> Center: {x: 0, y: 0}
+Text: "HOTPOTMAN บางแค" -> Center: {x: 0, y: 0}
+Text: "สาขาบางแค" -> Center: {x: 0, y: 0}
+Text: "11.1 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 0, y: 0}
+Text: "207" -> Center: {x: 0, y: 0}
+Text: "คิว" -> Center: {x: 0, y: 0}
+Text: "Namba Shabu - เดอะมอลล์งามวงศ์วาน" -> Center: {x: 0, y: 0}
+Text: "เดอะมอลล์งามวงศ์วาน ชั้น 5 ติดกับ Sizzler" -> Center: {x: 0, y: 0}
+Text: "12.3 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 0, y: 0}
+Text: "10" -> Center: {x: 0, y: 0}
+Text: "คิว" -> Center: {x: 0, y: 0}
+Text: "HOTPOTMAN พระราม2" -> Center: {x: 0, y: 0}
+Text: "สาขาพระราม 2" -> Center: {x: 0, y: 0}
+Text: "13.9 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 0, y: 0}
+Text: "153" -> Center: {x: 0, y: 0}
+Text: "คิว" -> Center: {x: 0, y: 0}
+Text: "HOTPOTMAN ประชาชื่น" -> Center: {x: 0, y: 0}
+Text: "สาขาประชาชื่น" -> Center: {x: 0, y: 0}
+Text: "14.0 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 0, y: 0}
+Text: "218" -> Center: {x: 0, y: 0}
+Text: "คิว" -> Center: {x: 0, y: 0}
+Text: "จิ้มจุ่มศรีอุดม" -> Center: {x: 0, y: 0}
+Text: "อาหารอีสาน-ไทย แยกศรีอุดม" -> Center: {x: 0, y: 0}
+Text: "14.1 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 0, y: 0}
+Text: "0" -> Center: {x: 0, y: 0}
+Text: "คิว" -> Center: {x: 0, y: 0}
+Text: "HOTPOTMAN บางนา" -> Center: {x: 0, y: 0}
+Text: "สาขาบางนา" -> Center: {x: 0, y: 0}
+Text: "15.6 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 0, y: 0}
+Text: "181" -> Center: {x: 0, y: 0}
+Text: "คิว" -> Center: {x: 0, y: 0}
+Text: "หมูกระทะคุณปอ" -> Center: {x: 0, y: 0}
+Text: "หลังเซ็นทรัลรามอินทรา" -> Center: {x: 0, y: 0}
+Text: "15.9 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 0, y: 0}
+Text: "0" -> Center: {x: 0, y: 0}
+Text: "คิว" -> Center: {x: 0, y: 0}
+Text: "Hotpot Man ประเวศ-ลาดกระบัง" -> Center: {x: 0, y: 0}
+Text: "Hotpot Man ประเวศ-ลาดกระบัง" -> Center: {x: 0, y: 0}
+Text: "16.3 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 0, y: 0}
+Text: "111" -> Center: {x: 0, y: 0}
+Text: "คิว" -> Center: {x: 0, y: 0}
+Text: "ชาบูบอมบ์ ประเวศ" -> Center: {x: 0, y: 0}
+Text: "Park 99" -> Center: {x: 0, y: 0}
+Text: "17.9 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 0, y: 0}
+Text: "0" -> Center: {x: 0, y: 0}
+Text: "คิว" -> Center: {x: 0, y: 0}
+Text: "อาดี้สุกี้ บุฟเฟต์หม่าล่า" -> Center: {x: 0, y: 0}
+Text: "ปากซอยเทพรักษ์45" -> Center: {x: 0, y: 0}
+Text: "18.0 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 0, y: 0}
+Text: "0" -> Center: {x: 0, y: 0}
+Text: "คิว" -> Center: {x: 0, y: 0}
+Text: "Giant Suki&amp;BBQ" -> Center: {x: 0, y: 0}
+Text: "ศรีนครินทร์ สมุทรปราการ" -> Center: {x: 0, y: 0}
+Text: "18.4 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 0, y: 0}
+Text: "0" -> Center: {x: 0, y: 0}
+Text: "คิว" -> Center: {x: 0, y: 0}
+Text: "อี้จาสุกี้หม่าล่า" -> Center: {x: 0, y: 0}
+Text: "สาขาศรีนครินทร์" -> Center: {x: 0, y: 0}
+Text: "18.6 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 0, y: 0}
+Text: "0" -> Center: {x: 0, y: 0}
+Text: "คิว" -> Center: {x: 0, y: 0}
+Text: "HOTPOT MAN กิ่งแก้ว" -> Center: {x: 0, y: 0}
+Text: "สาขากิ่งแก้ว" -> Center: {x: 0, y: 0}
+Text: "22.8 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 0, y: 0}
+Text: "80" -> Center: {x: 0, y: 0}
+Text: "คิว" -> Center: {x: 0, y: 0}
+Text: "ชาบูโกลด์" -> Center: {x: 0, y: 0}
+Text: "ถนนไทยรามัญ" -> Center: {x: 0, y: 0}
+Text: "24.5 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 0, y: 0}
+Text: "0" -> Center: {x: 0, y: 0}
+Text: "คิว" -> Center: {x: 0, y: 0}
+Text: "บังฟาชาบูปิ้งย่าง Bangfashabu" -> Center: {x: 0, y: 0}
+Text: "ตลาดมารวยหทัยราษฎร์" -> Center: {x: 0, y: 0}
+Text: "27.8 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 0, y: 0}
+Text: "0" -> Center: {x: 0, y: 0}
+Text: "คิว" -> Center: {x: 0, y: 0}
+Text: "HOTPOTMAN รังสิต" -> Center: {x: 0, y: 0}
+Text: "สาขารังสิต" -> Center: {x: 0, y: 0}
+Text: "28.5 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 0, y: 0}
+Text: "405" -> Center: {x: 0, y: 0}
+Text: "คิว" -> Center: {x: 0, y: 0}
+Text: "DA POT เมืองเอก" -> Center: {x: 0, y: 0}
+Text: "หม่าล่าหม้อไฟแบรนด์ใหม่จากสุกี้จินดา อยู่ในปั้ม shell เมืองเอก" -> Center: {x: 0, y: 0}
+Text: "40.8 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 0, y: 0}
+Text: "0" -> Center: {x: 0, y: 0}
+Text: "คิว" -> Center: {x: 0, y: 0}
+Text: "HOTPOTMAN โคราช" -> Center: {x: 0, y: 0}
+Text: "สาขาโคราช" -> Center: {x: 0, y: 0}
+Text: "220.9 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 0, y: 0}
+Text: "7" -> Center: {x: 0, y: 0}
+Text: "คิว" -> Center: {x: 0, y: 0}
+Text: "ปังฟูกุ PungFuKu" -> Center: {x: 0, y: 0}
+Text: "933/12 Khonkaen" -> Center: {x: 0, y: 0}
+Text: "391.0 km" -> Center: {x: 0, y: 0}
+Text: "รออยู่" -> Center: {x: 0, y: 0}
+Text: "23" -> Center: {x: 0, y: 0}
+Text: "คิว" -> Center: {x: 0, y: 0}

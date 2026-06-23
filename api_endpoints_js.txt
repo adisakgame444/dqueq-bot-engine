@@ -1,0 +1,16 @@
+https://deltafoodpicture.sgp1.digitaloceanspaces.com/member_img/1746439613369439.jpg
+https://deltafoodpicture.sgp1.digitaloceanspaces.com/img/DQ-Zone-01.png
+https://deltafoodpicture.sgp1.digitaloceanspaces.com/member_img
+https://deltafoodpicture.sgp1.digitaloceanspaces.com/banner
+https://deltafoodpicture.sgp1.digitaloceanspaces.com/member_img/172855323333558.png
+https://order.deltafood.me/c
+https://deltafood.s3.ap-southeast-1.amazonaws.com/banner
+https://api.qrserver.com/v1/create-qr-code/?data=concert-test&size=100x100
+https://paymentapi.deltasoft.co.th/api/generate_qrcode_dqueue_premium
+https://v2.deltafood.me/assets/img/logo_font.png
+https://paymentapi.deltasoft.co.th/api/generate_qrcode_dqueue_user
+https://app.deltafood.co/qr/?data=https
+https://imgs.deltafood.me/upload.php
+https://app.deltafood.me/api/API_customer6
+https://orderapi.deltafood.me/order
+https://backend4.deltaapiservice.com/dqueue

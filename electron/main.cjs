@@ -13,6 +13,7 @@ const bundledCloudflaredDir = app.isPackaged
   ? path.join(process.resourcesPath, "cloudflared")
   : path.join(rootDir, "launcher-assets", "cloudflared");
 const runtimeCloudflaredDir = path.join(externalDataDir, "cloudflared");
+const publicTunnelFile = path.join(externalDataDir, "public-tunnel.json");
 const webUrl = "http://localhost:5000";
 const remoteBaseUrl = `http://${process.env.REMOTE_ANDROID_HOST || "127.0.0.1"}:${process.env.REMOTE_ANDROID_PORT || "5100"}`;
 const accountsUrl = `${remoteBaseUrl}/accounts`;
@@ -165,6 +166,40 @@ function isRemoteReachable() {
   return isUrlReachable(accountsUrl);
 }
 
+async function waitForRemoteReady(timeoutMs = 15000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await isRemoteReachable()) return true;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  return false;
+}
+
+function writePublicTunnelUrl(url) {
+  try {
+    fs.writeFileSync(
+      publicTunnelFile,
+      JSON.stringify({ url, updatedAt: new Date().toISOString() }, null, 2),
+      "utf8"
+    );
+  } catch (error) {
+    log("tunnel", `Unable to write public tunnel URL: ${error.message}`);
+  }
+}
+
+function clearPublicTunnelUrl() {
+  try {
+    if (fs.existsSync(publicTunnelFile)) fs.unlinkSync(publicTunnelFile);
+  } catch {
+    // Best effort only. The next successful tunnel run will overwrite it.
+  }
+}
+
+function extractPublicTunnelUrl(text) {
+  const match = String(text).match(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/i);
+  return match ? match[0] : null;
+}
+
 function nodeCommand(scriptPath, args) {
   fs.mkdirSync(externalDataDir, { recursive: true });
   const runtimeEnv = loadRuntimeEnv();
@@ -177,6 +212,7 @@ function nodeCommand(scriptPath, args) {
       ...process.env,
       ...runtimeEnv,
       DQUEUE_DATA_DIR: externalDataDir,
+      DQUEUE_PUBLIC_TUNNEL_FILE: publicTunnelFile,
       ELECTRON_RUN_AS_NODE: "1",
       FORCE_COLOR: "0",
       NEXT_TELEMETRY_DISABLED: "1",
@@ -301,48 +337,17 @@ function yamlPath(filePath) {
   return filePath.replace(/\\/g, "/");
 }
 
-function readBundledTunnelId() {
-  const credentialsFile = path.join(bundledCloudflaredDir, "credentials.json");
-  try {
-    const credentials = JSON.parse(fs.readFileSync(credentialsFile, "utf8"));
-    return credentials.TunnelID || "";
-  } catch {
-    return "";
-  }
-}
-
-function prepareBundledCloudflared(runtimeEnv) {
+function prepareBundledCloudflared() {
   const bundledExe = path.join(bundledCloudflaredDir, "cloudflared.exe");
-  const bundledCredentials = path.join(bundledCloudflaredDir, "credentials.json");
-  if (!fs.existsSync(bundledExe) || !fs.existsSync(bundledCredentials)) return null;
+  if (!fs.existsSync(bundledExe)) return null;
 
   fs.mkdirSync(runtimeCloudflaredDir, { recursive: true });
 
   const runtimeExe = path.join(runtimeCloudflaredDir, "cloudflared.exe");
-  const runtimeCredentials = path.join(runtimeCloudflaredDir, "credentials.json");
-  const runtimeConfig = path.join(runtimeCloudflaredDir, "config.yml");
-
   if (!fs.existsSync(runtimeExe)) fs.copyFileSync(bundledExe, runtimeExe);
-  fs.copyFileSync(bundledCredentials, runtimeCredentials);
-
-  const tunnelId = runtimeEnv.CLOUDFLARED_TUNNEL_ID || readBundledTunnelId();
-  const hostname = runtimeEnv.CLOUDFLARED_HOSTNAME || "remote.bothero.online";
-  const service = runtimeEnv.CLOUDFLARED_SERVICE || "http://127.0.0.1:5100";
-  const config = [
-    `tunnel: ${tunnelId}`,
-    `credentials-file: ${yamlPath(runtimeCredentials)}`,
-    "",
-    "ingress:",
-    `  - hostname: ${hostname}`,
-    `    service: ${service}`,
-    "  - service: http_status:404",
-    "",
-  ].join("\n");
-  fs.writeFileSync(runtimeConfig, config, "utf8");
 
   return {
     exePath: runtimeExe,
-    configPath: runtimeConfig,
   };
 }
 
@@ -352,20 +357,33 @@ function startTunnel() {
   const runtimeEnv = loadRuntimeEnv();
   if (!runtimeEnv) return;
 
-  const bundledCloudflared = prepareBundledCloudflared(runtimeEnv);
+  clearPublicTunnelUrl();
+
+  const bundledCloudflared = prepareBundledCloudflared();
+  const configuredConfig = runtimeEnv.CLOUDFLARED_CONFIG || process.env.CLOUDFLARED_CONFIG;
+  const useNamedTunnel = runtimeEnv.CLOUDFLARED_MODE === "named" || Boolean(configuredConfig);
+  const service = runtimeEnv.CLOUDFLARED_SERVICE || remoteBaseUrl;
   const configPath =
-    runtimeEnv.CLOUDFLARED_CONFIG ||
-    process.env.CLOUDFLARED_CONFIG ||
-    bundledCloudflared?.configPath ||
+    configuredConfig ||
     path.join(process.env.USERPROFILE || "", ".cloudflared", "config.yml");
   const cloudflaredPath = bundledCloudflared?.exePath || resolveCloudflaredPath(runtimeEnv);
+  const tunnelArgs = useNamedTunnel
+    ? [
+        "tunnel",
+        "--protocol",
+        "http2",
+        "--config",
+        configPath,
+        "run",
+      ]
+    : ["tunnel", "--no-autoupdate", "--url", service];
 
   setStatus("tunnel", "starting");
   log("tunnel", "กำลังรัน Cloudflare tunnel");
 
   tunnelProcess = spawn(
     cloudflaredPath,
-    ["tunnel", "--protocol", "http2", "--config", configPath, "run"],
+    tunnelArgs,
     {
       cwd: externalDataDir,
       env: {
@@ -378,14 +396,24 @@ function startTunnel() {
     }
   );
   tunnelProcess.stdout.on("data", (data) => {
-    log("tunnel", data);
+    const text = String(data);
+    log("tunnel", text);
+    const publicUrl = extractPublicTunnelUrl(text);
+    if (publicUrl) {
+      writePublicTunnelUrl(publicUrl);
+      log("tunnel", `Public link ready: ${publicUrl}`);
+    }
     setStatus("tunnel", "running");
   });
   tunnelProcess.stderr.on("data", (data) => {
     const text = String(data);
     log("tunnel", text);
-    if (/error|failed|unable/i.test(text)) setStatus("tunnel", "error");
-    else setStatus("tunnel", "running");
+    const publicUrl = extractPublicTunnelUrl(text);
+    if (publicUrl) {
+      writePublicTunnelUrl(publicUrl);
+      log("tunnel", `Public link ready: ${publicUrl}`);
+    }
+    setStatus("tunnel", "running");
   });
   tunnelProcess.on("error", (error) => {
     log("tunnel", `${error.message}. ตั้งค่า CLOUDFLARED_PATH หรือวาง cloudflared.exe ข้างไฟล์โปรแกรม`);
@@ -395,16 +423,23 @@ function startTunnel() {
   tunnelProcess.on("exit", (code, signal) => {
     log("tunnel", `หยุดทำงาน code=${code ?? "-"} signal=${signal ?? "-"}`);
     tunnelProcess = null;
+    if (code !== 0) clearPublicTunnelUrl();
     setStatus("tunnel", code === 0 ? "stopped" : "error");
   });
 }
 
 async function startAll() {
-  if (!loadRuntimeEnv()) return;
+  const runtimeEnv = loadRuntimeEnv();
+  if (!runtimeEnv) return;
   await startRemote();
+  if (!(await waitForRemoteReady())) {
+    log("remote", "Remote Android local agent did not become ready on port 5100");
+    setStatus("remote", "error");
+    return;
+  }
   startTunnel();
-  await startWeb();
-  startBot();
+  if (runtimeEnv.DQUEUE_START_WEB === "1") await startWeb();
+  if (runtimeEnv.DQUEUE_START_TELEGRAM_BOT === "1") startBot();
 }
 
 function stopProcess(child, source) {

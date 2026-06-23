@@ -1,0 +1,13 @@
+facebook.com
+==T?this.get_queue():
+),this.queue_realtime&&this.queue_realtime.unsubscribe()):
+),T.booking_queue&&T.booking_queue.length>0?this.get_booking_queue():(localStorage.removeItem(
+)),T.queue?(localStorage.setItem(
+))}),this.queue_realtime=this.fb.object(this.path_fb+
+),ee.queueToWait-0==-2?(localStorage.removeItem(
+,Ce);let Me=Ce.code,_e=Ce.call;if(console.log(Me,T.zone.code+(T.queue.user_queue+
+)),Me==T.zone.code+(T.queue.user_queue+
+==R.type&&(R.call==T.queue.user_queue&&R.type_id==T.queue._id?(localStorage.removeItem(
+),this.queue_cancel(T,R),this.myApiService.send_event(
+,JSON.stringify(T)),g.get_queue()):localStorage.removeItem(
+

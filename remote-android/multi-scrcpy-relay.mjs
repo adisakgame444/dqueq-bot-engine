@@ -22,7 +22,7 @@ import { WebSocket, WebSocketServer } from "ws";
 const MAX_BUFFERED_BYTES = 16 * 1024 * 1024;
 const DISPLAY_WIDTH = 900;
 const DISPLAY_HEIGHT = 1920;
-const DISPLAY_DENSITY = 320;
+const DISPLAY_DENSITY = 460;
 let adbConnectPromise = null;
 
 function runAdbOnce(adbPath, device, args, options = {}) {

@@ -11,9 +11,7 @@ const IOS_TOP_CROP = 0;
 const Y_OFFSET = isIosView ? IOS_TOP_CROP : 0;
 const DEVICE_VISIBLE_HEIGHT = isIosView
   ? DEVICE_HEIGHT - IOS_TOP_CROP
-  : isAppView
-    ? 1778
-    : DEVICE_HEIGHT;
+  : DEVICE_HEIGHT;
 const H264_CODEC = 1748121140;
 const accountMatch = /^\/(?:account|app|app-ios)\/(\d+)$/.exec(location.pathname);
 const SESSION_ID = accountMatch ? Number(accountMatch[1]) : 1;
@@ -122,6 +120,42 @@ async function sendPointerGesture(start, end) {
   }
 }
 
+let autoFullscreenActivated = false;
+async function activateAutoFullscreen() {
+  if (autoFullscreenActivated) return;
+  if (document.fullscreenElement) {
+    autoFullscreenActivated = true;
+    return;
+  }
+  try {
+    if (document.documentElement.requestFullscreen) {
+      try {
+        await document.documentElement.requestFullscreen({
+          navigationUI: "show",
+        });
+      } catch {
+        await document.documentElement.requestFullscreen();
+      }
+      if (window.screen.orientation?.lock) {
+        window.screen.orientation.lock("portrait").catch(() => {});
+      }
+    }
+    autoFullscreenActivated = true;
+  } catch (error) {
+    console.error("Auto fullscreen activation failed:", error);
+  }
+}
+
+if (isAppView && !isIosView) {
+  const triggerAutoFullscreen = () => {
+    activateAutoFullscreen();
+    document.body.removeEventListener("touchend", triggerAutoFullscreen);
+    document.body.removeEventListener("click", triggerAutoFullscreen);
+  };
+  document.body.addEventListener("touchend", triggerAutoFullscreen, { passive: true });
+  document.body.addEventListener("click", triggerAutoFullscreen, { passive: true });
+}
+
 device.addEventListener("pointerdown", (event) => {
   device.focus();
   pointerStart = point(event);
@@ -200,14 +234,16 @@ function showPngFallback(reason) {
   streamActive = false;
   fallbackReason = reason || "";
   canvas.hidden = true;
-  screen.hidden = isIosView ? true : false;
+  const isWaiting = reason === "waiting for virtual display";
+  screen.hidden = isIosView || isWaiting ? true : false;
   loading.style.display = isIosView ? "none" : "grid";
   loading.textContent =
     reason === "waiting for virtual display"
       ? "กำลังเปิด DQueue..."
       : "กำลังเชื่อมต่อ DQueue...";
   streamMode.textContent = reason ? `Waiting: ${reason}` : "Waiting";
-  if (!isIosView) startPngFallback();
+  if (!isIosView && !isWaiting) startPngFallback();
+  else stopPngFallback();
   updateDebug();
 }
 
@@ -424,7 +460,9 @@ if (sendTextButton) {
 
 function updateFullscreenPrompt() {
   if (!fullscreenPrompt) return;
-  const mobile = window.matchMedia("(max-width: 600px)").matches;
+  const mobile =
+    window.matchMedia("(max-width: 900px)").matches ||
+    window.matchMedia("(hover: none) and (pointer: coarse)").matches;
   const supported = Boolean(document.documentElement.requestFullscreen);
   fullscreenPrompt.hidden =
     !mobile || !supported || Boolean(document.fullscreenElement);
