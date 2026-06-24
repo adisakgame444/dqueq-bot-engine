@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { loadApiAccounts } from "../../../lib/api_accounts";
+import { loadApiAccountsDb } from "../../../lib/api_accounts";
 import { syncActiveApiBookingsFromAccounts } from "../../../lib/api_bookings";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const accounts = loadApiAccounts().map((account) => ({
+  const accounts = (await loadApiAccountsDb()).map((account) => ({
     id: account.id,
     email: account.email,
     displayName: account.displayName,

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import DashboardClient from "../../components/DashboardClient";
-import { loadApiAccounts } from "../../lib/api_accounts";
+import { loadApiAccountsDb } from "../../lib/api_accounts";
 import { syncActiveApiBookingsFromAccounts } from "../../lib/api_bookings";
 import { getCurrentWebUser } from "../../lib/web_auth";
 
@@ -11,7 +11,7 @@ export default async function ManagerPage() {
   if (!user) redirect("/login");
   if (user.role !== "ADMIN") redirect("/");
 
-  const accounts = loadApiAccounts().map((account) => ({
+  const accounts = (await loadApiAccountsDb()).map((account) => ({
     id: account.id,
     email: account.email,
     displayName: account.displayName,

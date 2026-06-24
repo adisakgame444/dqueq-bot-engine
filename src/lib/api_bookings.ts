@@ -1,5 +1,5 @@
 import fs from "fs";
-import { loadApiAccounts, type ApiAccount, updateApiAccountTokens } from "./api_accounts";
+import { loadApiAccounts, loadApiAccountsDb, type ApiAccount, updateApiAccountTokens } from "./api_accounts";
 import { dataFile } from "./data_dir";
 import { QueqApiClient } from "../queq_api";
 import { prisma } from "./prisma";
@@ -74,6 +74,26 @@ export function loadActiveApiBookings(): ApiBookingRecord[] {
   return loadApiBookings()
     .filter((booking) => booking.status !== "CANCELLED" && booking.status !== "COMPLETED")
     .sort(compareBookingsByWaiting);
+}
+
+export async function loadActiveApiBookingsDb(): Promise<ApiBookingRecord[]> {
+  try {
+    const dbBookings = await prisma.apiBooking.findMany({
+      where: {
+        status: {
+          notIn: ["CANCELLED", "COMPLETED"],
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+    });
+    const bookings: ApiBookingRecord[] = dbBookings.map(mapDbBookingToApiBookingRecord);
+    return bookings.sort(compareBookingsByWaiting);
+  } catch (error) {
+    console.error("Failed to load active bookings from DB:", error);
+    return [];
+  }
 }
 
 async function mapWithConcurrency<T, R>(
@@ -310,7 +330,7 @@ export async function syncActiveApiBookingsFromAccounts(): Promise<ApiBookingRec
 }
 
 async function syncActiveApiBookingsFromAccountsInternal(): Promise<ApiBookingRecord[]> {
-  const accounts = loadApiAccounts();
+  const accounts = await loadApiAccountsDb();
   const now = new Date();
   const existingBookings = await prisma.apiBooking.findMany();
 
@@ -437,5 +457,5 @@ async function syncActiveApiBookingsFromAccountsInternal(): Promise<ApiBookingRe
 
   await syncBookingsFromDb();
 
-  return loadActiveApiBookings();
+  return await loadActiveApiBookingsDb();
 }

@@ -85,6 +85,18 @@ export function loadApiAccounts(): ApiAccount[] {
   return Array.isArray(accounts) ? accounts : [];
 }
 
+export async function loadApiAccountsDb(): Promise<ApiAccount[]> {
+  try {
+    const dbAccounts = await prisma.apiAccount.findMany({
+      orderBy: { createdAt: "desc" },
+    });
+    return dbAccounts.map(mapDbAccountToApiAccount);
+  } catch (error) {
+    console.error("Failed to load accounts from DB:", error);
+    return [];
+  }
+}
+
 export async function syncAccountsFromDb(): Promise<void> {
   try {
     const dbAccounts = await prisma.apiAccount.findMany({

@@ -1,7 +1,7 @@
 import fs from "fs";
 import { NextRequest, NextResponse } from "next/server";
 import {
-  loadApiAccounts,
+  loadApiAccountsDb,
   saveGoogleApiAccount,
   updateApiAccountTokens,
 } from "../../../../../lib/api_accounts";
@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const existing = loadApiAccounts().find((account) => account.id === targetEmail);
+      const existing = (await loadApiAccountsDb()).find((account) => account.id === targetEmail);
       if (!existing) {
         return NextResponse.json({ ok: false, error: `Account not found: ${targetEmail}` }, { status: 404 });
       }
@@ -116,7 +116,7 @@ export async function POST(req: NextRequest) {
     if (oauthState.otpCode) accountInput.otpCode = oauthState.otpCode;
     if (oauthState.emailPassword) accountInput.emailPassword = oauthState.emailPassword;
 
-    const previous = loadApiAccounts().find((account) => account.id === normalizeEmail(accountInput.email));
+    const previous = (await loadApiAccountsDb()).find((account) => account.id === normalizeEmail(accountInput.email));
     const account = await saveGoogleApiAccount(accountInput);
 
     fs.writeFileSync(dataFile("extracted_tokens.txt"), dqueue.token);

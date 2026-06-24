@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import LogoutButton from "../components/LogoutButton";
 import QueueMonitorClient from "../components/QueueMonitorClient";
-import { loadActiveApiBookings } from "../lib/api_bookings";
+import { loadActiveApiBookingsDb } from "../lib/api_bookings";
 import { getCurrentWebUser } from "../lib/web_auth";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +11,7 @@ export default async function Home() {
   const user = await getCurrentWebUser();
   if (!user) redirect("/login");
 
-  const bookings = loadActiveApiBookings();
+  const bookings = await loadActiveApiBookingsDb();
 
   return (
     <main className="min-h-screen bg-[#f3f5f7] px-4 py-5 text-slate-900">

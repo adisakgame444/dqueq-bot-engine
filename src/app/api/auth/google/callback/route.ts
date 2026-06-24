@@ -1,7 +1,7 @@
 import fs from "fs";
 import { NextRequest, NextResponse } from "next/server";
 import {
-  loadApiAccounts,
+  loadApiAccountsDb,
   saveGoogleApiAccount,
   updateApiAccountTokens,
 } from "../../../../../lib/api_accounts";
@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
         );
       }
 
-      const existing = loadApiAccounts().find((account) => account.id === targetEmail);
+      const existing = (await loadApiAccountsDb()).find((account) => account.id === targetEmail);
       if (!existing) {
         return html(
           "Google Refresh Failed",
