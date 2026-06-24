@@ -1,5 +1,6 @@
 import fs from "fs";
 import { dataFile } from "./data_dir";
+import { prisma } from "./prisma";
 
 const ACCOUNTS_FILE = dataFile("api_accounts.json");
 const LEGACY_ACCESS_TOKEN_FILE = dataFile("extracted_tokens.txt");
@@ -51,9 +52,49 @@ function syncLegacyToken(account: ApiAccount): void {
   }
 }
 
+function mapDbAccountToApiAccount(account: any): ApiAccount {
+  const acc: ApiAccount = {
+    id: account.id,
+    email: account.email,
+    displayName: account.displayName,
+    accessToken: account.accessToken,
+    active: account.active,
+    createdAt: account.createdAt.toISOString(),
+    updatedAt: account.updatedAt.toISOString(),
+  };
+  if (account.emailPassword !== null && account.emailPassword !== undefined) {
+    acc.emailPassword = account.emailPassword;
+  }
+  if (account.otpCode !== null && account.otpCode !== undefined) {
+    acc.otpCode = account.otpCode;
+  }
+  if (account.photoURL !== null && account.photoURL !== undefined) {
+    acc.photoURL = account.photoURL;
+  }
+  if (account.refreshToken !== null && account.refreshToken !== undefined) {
+    acc.refreshToken = account.refreshToken;
+  }
+  if (account.lastUsedAt !== null && account.lastUsedAt !== undefined) {
+    acc.lastUsedAt = account.lastUsedAt.toISOString();
+  }
+  return acc;
+}
+
 export function loadApiAccounts(): ApiAccount[] {
   const accounts = readJsonFile<ApiAccount[]>(ACCOUNTS_FILE, []);
   return Array.isArray(accounts) ? accounts : [];
+}
+
+export async function syncAccountsFromDb(): Promise<void> {
+  try {
+    const dbAccounts = await prisma.apiAccount.findMany({
+      orderBy: { createdAt: "desc" },
+    });
+    const accounts: ApiAccount[] = dbAccounts.map(mapDbAccountToApiAccount);
+    writeAccounts(accounts);
+  } catch (error) {
+    console.error("Failed to sync accounts from DB:", error);
+  }
 }
 
 export function getActiveApiAccount(): ApiAccount | null {
@@ -77,7 +118,7 @@ export function getActiveApiAccount(): ApiAccount | null {
   return legacyAccount;
 }
 
-export function saveGoogleApiAccount(input: {
+export async function saveGoogleApiAccount(input: {
   email: string;
   displayName: string;
   emailPassword?: string;
@@ -85,112 +126,102 @@ export function saveGoogleApiAccount(input: {
   photoURL?: string;
   accessToken: string;
   telegramId?: number;
-}): ApiAccount {
-  const now = new Date().toISOString();
-  const accounts = loadApiAccounts();
+}): Promise<ApiAccount> {
+  const now = new Date();
   const id = input.email.toLowerCase();
-  const existing = accounts.find((account) => account.id === id);
 
-  const updated: ApiAccount = {
-    id,
-    email: input.email,
-    displayName: input.displayName || input.email,
-    accessToken: input.accessToken,
-    active: true,
-    createdAt: existing?.createdAt ?? now,
-    updatedAt: now,
-    lastUsedAt: now,
-  };
+  // Deactivate all other accounts
+  await prisma.apiAccount.updateMany({
+    data: { active: false },
+  });
 
-  if (input.otpCode) {
-    updated.otpCode = input.otpCode;
-  } else if (existing?.otpCode) {
-    updated.otpCode = existing.otpCode;
-  }
-  if (input.emailPassword) {
-    updated.emailPassword = input.emailPassword;
-  } else if (existing?.emailPassword) {
-    updated.emailPassword = existing.emailPassword;
-  }
-  if (input.photoURL) {
-    updated.photoURL = input.photoURL;
-  } else if (existing?.photoURL) {
-    updated.photoURL = existing.photoURL;
-  }
-  if (existing?.refreshToken) {
-    updated.refreshToken = existing.refreshToken;
-  }
+  const updatedDb = await prisma.apiAccount.upsert({
+    where: { id },
+    create: {
+      id,
+      email: input.email,
+      displayName: input.displayName || input.email,
+      emailPassword: input.emailPassword || null,
+      otpCode: input.otpCode || null,
+      photoURL: input.photoURL || null,
+      accessToken: input.accessToken,
+      active: true,
+      lastUsedAt: now,
+    },
+    update: {
+      displayName: input.displayName || input.email,
+      accessToken: input.accessToken,
+      active: true,
+      lastUsedAt: now,
+      ...(input.otpCode ? { otpCode: input.otpCode } : {}),
+      ...(input.emailPassword ? { emailPassword: input.emailPassword } : {}),
+      ...(input.photoURL ? { photoURL: input.photoURL } : {}),
+    },
+  });
 
-  const nextAccounts = accounts
-    .filter((account) => account.id !== id)
-    .map((account) => ({ ...account, active: false }));
-  nextAccounts.unshift(updated);
-  writeAccounts(nextAccounts);
-  syncLegacyToken(updated);
-  return updated;
+  const result = mapDbAccountToApiAccount(updatedDb);
+
+  await syncAccountsFromDb();
+  syncLegacyToken(result);
+  return result;
 }
 
-export function updateApiAccountTokens(id: string, input: {
+export async function updateApiAccountTokens(id: string, input: {
   accessToken: string;
   refreshToken?: string;
   displayName?: string;
   email?: string;
-}): ApiAccount | null {
-  const accounts = loadApiAccounts();
-  const existing = accounts.find((account) => account.id === id);
-  if (!existing) return null;
+}): Promise<ApiAccount | null> {
+  try {
+    const updatedDb = await prisma.apiAccount.update({
+      where: { id },
+      data: {
+        accessToken: input.accessToken,
+        active: true,
+        ...(input.refreshToken ? { refreshToken: input.refreshToken } : {}),
+        ...(input.displayName ? { displayName: input.displayName } : {}),
+        ...(input.email ? { email: input.email } : {}),
+      },
+    });
 
-  const now = new Date().toISOString();
-  const updatedAccounts = accounts.map((account) => {
-    if (account.id !== id) {
-      return { ...account, active: false };
-    }
+    // Deactivate all other accounts
+    await prisma.apiAccount.updateMany({
+      where: { NOT: { id } },
+      data: { active: false },
+    });
 
-    const updated: ApiAccount = {
-      ...account,
-      accessToken: input.accessToken,
-      active: true,
-      updatedAt: now,
-      lastUsedAt: now,
-    };
-    if (input.refreshToken) updated.refreshToken = input.refreshToken;
-    if (input.displayName) updated.displayName = input.displayName;
-    if (input.email) updated.email = input.email;
-    return updated;
-  });
+    const result = mapDbAccountToApiAccount(updatedDb);
 
-  writeAccounts(updatedAccounts);
-  const updated = updatedAccounts.find((account) => account.id === id) ?? null;
-  if (updated) syncLegacyToken(updated);
-  return updated;
+    await syncAccountsFromDb();
+    syncLegacyToken(result);
+    return result;
+  } catch {
+    return null;
+  }
 }
 
-export function setActiveApiAccount(id: string): ApiAccount | null {
-  const accounts = loadApiAccounts();
-  const target = accounts.find((account) => account.id === id);
-  if (!target) return null;
+export async function setActiveApiAccount(id: string): Promise<ApiAccount | null> {
+  try {
+    await prisma.apiAccount.updateMany({
+      data: { active: false },
+    });
 
-  const now = new Date().toISOString();
-  const updatedAccounts: ApiAccount[] = accounts.map((account) => {
-    const updated: ApiAccount = {
-      ...account,
-      active: account.id === id,
-    };
-    if (account.id === id) {
-      updated.lastUsedAt = now;
-    } else if (account.lastUsedAt) {
-      updated.lastUsedAt = account.lastUsedAt;
-    }
-    return updated;
-  });
+    const updatedDb = await prisma.apiAccount.update({
+      where: { id },
+      data: { active: true, lastUsedAt: new Date() },
+    });
 
-  writeAccounts(updatedAccounts);
-  const active = updatedAccounts.find((account) => account.id === id) ?? null;
-  if (active) syncLegacyToken(active);
-  return active;
+    const result = mapDbAccountToApiAccount(updatedDb);
+
+    await syncAccountsFromDb();
+    syncLegacyToken(result);
+    return result;
+  } catch {
+    return null;
+  }
 }
 
-export function updateActiveApiToken(accessToken: string, refreshToken?: string): ApiAccount | null {
+export async function updateActiveApiToken(accessToken: string, refreshToken?: string): Promise<ApiAccount | null> {
   const active = getActiveApiAccount();
   if (!active || active.id === "legacy") {
     fs.writeFileSync(LEGACY_ACCESS_TOKEN_FILE, accessToken);
@@ -198,35 +229,47 @@ export function updateActiveApiToken(accessToken: string, refreshToken?: string)
     return null;
   }
 
-  const now = new Date().toISOString();
-  const accounts: ApiAccount[] = loadApiAccounts().map((account) => {
-    if (account.id !== active.id) return account;
-    const updated: ApiAccount = {
-      ...account,
-      accessToken,
-      updatedAt: now,
-      lastUsedAt: now,
-    };
-    if (refreshToken) {
-      updated.refreshToken = refreshToken;
-    } else if (account.refreshToken) {
-      updated.refreshToken = account.refreshToken;
-    }
-    return updated;
-  });
+  try {
+    const updatedDb = await prisma.apiAccount.update({
+      where: { id: active.id },
+      data: {
+        accessToken,
+        ...(refreshToken ? { refreshToken } : {}),
+      },
+    });
 
-  writeAccounts(accounts);
-  const updated = accounts.find((account) => account.id === active.id) ?? null;
-  if (updated) syncLegacyToken(updated);
-  return updated;
+    const result = mapDbAccountToApiAccount(updatedDb);
+
+    await syncAccountsFromDb();
+    syncLegacyToken(result);
+    return result;
+  } catch {
+    return null;
+  }
 }
 
-export function deleteApiAccount(id: string): ApiAccount[] {
-  const accounts = loadApiAccounts().filter((account) => account.id !== id);
-  if (accounts.length > 0 && !accounts.some((account) => account.active)) {
-    accounts[0] = { ...accounts[0]!, active: true };
-    syncLegacyToken(accounts[0]!);
+export async function deleteApiAccount(id: string): Promise<ApiAccount[]> {
+  try {
+    await prisma.apiAccount.delete({
+      where: { id },
+    });
+
+    const remaining = await prisma.apiAccount.findMany({
+      orderBy: { createdAt: "desc" },
+    });
+    if (remaining.length > 0 && !remaining.some(acc => acc.active)) {
+      await prisma.apiAccount.update({
+        where: { id: remaining[0]!.id },
+        data: { active: true },
+      });
+    }
+
+    await syncAccountsFromDb();
+    const accounts = loadApiAccounts();
+    const active = accounts.find((account) => account.active) ?? accounts[0] ?? null;
+    if (active) syncLegacyToken(active);
+    return accounts;
+  } catch {
+    return loadApiAccounts();
   }
-  writeAccounts(accounts);
-  return accounts;
 }

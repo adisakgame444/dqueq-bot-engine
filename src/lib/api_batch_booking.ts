@@ -109,7 +109,7 @@ export async function runBatchBooking(input: {
   for (let index = 0; index < assignedTargets.length; index += 1) {
     const target = assignedTargets[index]!;
     const account = accounts[index]!;
-    setActiveApiAccount(account.id);
+    await setActiveApiAccount(account.id);
 
     const baseResult = {
       accountId: account.id,
@@ -127,7 +127,7 @@ export async function runBatchBooking(input: {
     try {
       const booking = await createClient(account).bookQueue(target.store.shopId, target.store.zoneId, target.people);
       if (booking.success) {
-        const record = saveApiBookingRecord({
+        const record = await saveApiBookingRecord({
           account,
           shopId: target.store.shopId,
           zoneId: target.store.zoneId,
@@ -182,10 +182,10 @@ export async function cancelBatchBookingResults(results: BatchBookingResult[]): 
     }
 
     try {
-      setActiveApiAccount(account.id);
+      await setActiveApiAccount(account.id);
       const cancelled = await createClient(account).cancelQueue(result.shopId, result.zoneId, result.queueId!);
       if (cancelled.success) {
-        cancelApiBookingRecord(result.queueId!);
+        await cancelApiBookingRecord(result.queueId!);
       }
       output.push({ ...result, success: cancelled.success, message: cancelled.message });
     } catch (error: any) {

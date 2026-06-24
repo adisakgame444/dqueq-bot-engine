@@ -81,6 +81,7 @@
       "scratch/tools/zipalign.exe",
       "dqueue-config.enc",
       "package.json",
+      "node_modules/.prisma/**/*",
       "node_modules/**/*",
       "!node_modules/electron/**/*",
       "!node_modules/electron-builder/**/*",

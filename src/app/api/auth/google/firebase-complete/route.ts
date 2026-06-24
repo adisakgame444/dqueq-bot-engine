@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
         picture: photoURL,
       });
 
-      const account = updateApiAccountTokens(existing.id, {
+      const account = await updateApiAccountTokens(existing.id, {
         accessToken: dqueue.token,
         displayName: displayName || existing.displayName,
         email: email || existing.email,
@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
     if (oauthState.emailPassword) accountInput.emailPassword = oauthState.emailPassword;
 
     const previous = loadApiAccounts().find((account) => account.id === normalizeEmail(accountInput.email));
-    const account = saveGoogleApiAccount(accountInput);
+    const account = await saveGoogleApiAccount(accountInput);
 
     fs.writeFileSync(dataFile("extracted_tokens.txt"), dqueue.token);
     return NextResponse.json({

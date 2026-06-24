@@ -85,31 +85,34 @@ export class QueqApiClient {
 
   async getActiveQueue(): Promise<any | null> {
     const res = await this.request("users-reservations/get_queue", "GET");
-    if (res.status === 200 && res.data?.queue) {
-      if (!res.data.queue.name_user || !res.data.queue.tel_user) {
-        const profile = await this.getUserProfile();
-        res.data.queue = {
-          ...res.data.queue,
-          name_user:
-            res.data.queue.name_user ??
-            profile?.first_name ??
-            profile?.name ??
-            profile?.displayName ??
-            "",
-          tel_user:
-            res.data.queue.tel_user ??
-            profile?.phone_number ??
-            profile?.phoneNumber ??
-          "",
-        };
+    if (res.status === 200) {
+      if (res.data?.queue) {
+        if (!res.data.queue.name_user || !res.data.queue.tel_user) {
+          const profile = await this.getUserProfile();
+          res.data.queue = {
+            ...res.data.queue,
+            name_user:
+              res.data.queue.name_user ??
+              profile?.first_name ??
+              profile?.name ??
+              profile?.displayName ??
+              "",
+            tel_user:
+              res.data.queue.tel_user ??
+              profile?.phone_number ??
+              profile?.phoneNumber ??
+              "",
+          };
+        }
+        const wait = await this.getQueueWaitCount();
+        if (typeof wait === "number") {
+          res.data.queueToWait = wait;
+        }
+        return res.data;
       }
-      const wait = await this.getQueueWaitCount();
-      if (typeof wait === "number") {
-        res.data.queueToWait = wait;
-      }
-      return res.data;
+      return { queue: null };
     }
-    return null;
+    throw new Error(`QueQ API failed with status ${res.status}`);
   }
 
   async getQueueWaitCount(): Promise<number | null> {

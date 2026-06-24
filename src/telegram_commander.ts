@@ -25,6 +25,14 @@ const adminId = process.env.ADMIN_TELEGRAM_ID;
 
 const bot = new Telegraf(botToken, { handlerTimeout: Infinity });
 
+bot.catch((err: any, ctx: any) => {
+  console.error(`Telegraf error for ${ctx.updateType}:`, err);
+  ctx.reply(`❌ เกิดข้อผิดพลาดในระบบบอท: ${err.message || err}`).catch((e: any) => {
+    console.error("Failed to reply with error message:", e);
+  });
+});
+
+
 const userState = new Map<number, string>();
 const apiBookingCache = new Map<string, { store: StoreSearchResult; people: number; accountId: string }>();
 const apiStoreCache = new Map<string, { store: StoreSearchResult; accountId: string }>();
@@ -332,7 +340,7 @@ async function bookQueueByShopName(ctx: any, shopName: string, people?: number) 
 }
 
 async function bookSelectedStore(ctx: any, store: StoreSearchResult, people: number, accountId: string) {
-  if (accountId !== "legacy") setActiveApiAccount(accountId);
+  if (accountId !== "legacy") await setActiveApiAccount(accountId);
 
   await ctx.answerCbQuery("Booking via API...");
   await ctx.editMessageText(
@@ -351,7 +359,7 @@ async function bookSelectedStore(ctx: any, store: StoreSearchResult, people: num
     if (result.success) {
       const account = getActiveApiAccount();
       if (account) {
-        saveApiBookingRecord({
+        await saveApiBookingRecord({
           account,
           shopId: store.shopId,
           zoneId: store.zoneId,
@@ -555,7 +563,7 @@ bot.hears("🔁 สลับบัญชี API", authMiddleware, async (ctx) =>
 
 bot.action(/^switch_api_account_(.+)$/, authMiddleware, async (ctx) => {
   if (!ctx.match) return;
-  const account = setActiveApiAccount(ctx.match[1] ?? "");
+  const account = await setActiveApiAccount(ctx.match[1] ?? "");
   if (!account) {
     await ctx.answerCbQuery("ไม่พบบัญชี");
     return ctx.reply("ไม่พบบัญชีนี้ อาจถูกลบไปแล้ว");
@@ -574,7 +582,7 @@ bot.action(/^delete_api_account_(.+)$/, authMiddleware, async (ctx) => {
   if (!ctx.match) return;
   const id = ctx.match[1] ?? "";
   const before = loadApiAccounts().find((account) => account.id === id);
-  const accounts = deleteApiAccount(id);
+  const accounts = await deleteApiAccount(id);
   await ctx.answerCbQuery("ลบบัญชีแล้ว");
   await ctx.editMessageText(
     `🗑️ ลบบัญชี API แล้ว: ${before?.email ?? id}\n\n` +
@@ -775,7 +783,7 @@ bot.action(/^api_store_(.+)$/, authMiddleware, async (ctx) => {
     return;
   }
 
-  if (pending.accountId !== "legacy") setActiveApiAccount(pending.accountId);
+  if (pending.accountId !== "legacy") await setActiveApiAccount(pending.accountId);
   const buttons = getPeopleOptions(pending.store).map((people) => [
     Markup.button.callback(`${people} คน`, `api_people_${key}_${people}`),
   ]);
@@ -847,7 +855,7 @@ bot.hears(/^จอง\s+(-?\d+)\s+(\d+)\s+(\d+)$/i, authMiddleware, async (ctx) 
     if (result.success) {
       const account = getActiveApiAccount();
       if (account) {
-        saveApiBookingRecord({
+        await saveApiBookingRecord({
           account,
           shopId,
           zoneId,
@@ -918,7 +926,7 @@ bot.action(/^api_cancel_(.+)$/, authMiddleware, async (ctx) => {
   }
 
   apiCancelCache.delete(cancelKey);
-  if (pending.accountId !== "legacy") setActiveApiAccount(pending.accountId);
+  if (pending.accountId !== "legacy") await setActiveApiAccount(pending.accountId);
 
   await ctx.answerCbQuery("กำลังยกเลิกคิว...");
   await ctx.editMessageText(`⏳ กำลังส่งคำสั่งยกเลิกคิว...\nAccount: ${getActiveApiAccountLabel()}`);
@@ -927,7 +935,7 @@ bot.action(/^api_cancel_(.+)$/, authMiddleware, async (ctx) => {
     const api = getApiClient();
     const result = await api.cancelQueue(pending.shopId, pending.zoneId, pending.queueId);
     if (result.success) {
-      cancelApiBookingRecord(pending.queueId);
+      await cancelApiBookingRecord(pending.queueId);
       await ctx.editMessageText(`✅ ยกเลิกคิวสำเร็จ\n${result.message}`);
     } else {
       await ctx.editMessageText(`❌ ยกเลิกคิวไม่สำเร็จ: ${result.message}`);
@@ -979,7 +987,7 @@ bot.hears("🔄 รีเฟรชโทเคน", authMiddleware, async (ctx) 
       return;
     }
 
-    const saved = updateApiAccountTokens(account.id, {
+    const saved = await updateApiAccountTokens(account.id, {
       accessToken: refreshed.newAccessToken,
       refreshToken: account.refreshToken,
     });
@@ -1012,7 +1020,7 @@ bot.command("myqueue", authMiddleware, async (ctx) => {
     if (activeQueue?.queue) {
       const account = getActiveApiAccount();
       if (account) {
-        saveApiBookingRecord({
+        await saveApiBookingRecord({
           account,
           shopId: Number(queue.id_res_auto),
           zoneId: Number(queue.zone_id),

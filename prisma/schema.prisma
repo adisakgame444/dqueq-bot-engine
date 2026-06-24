@@ -111,3 +111,51 @@ model BotSession {
 
   @@index([email, regStatus, queueStatus])
 }
+
+model ApiAccount {
+  id            String       @id
+  email         String       @unique
+  displayName   String
+  emailPassword String?
+  otpCode       String?
+  photoURL      String?
+  accessToken   String
+  refreshToken  String?
+  active        Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  lastUsedAt    DateTime?
+  bookings      ApiBooking[]
+}
+
+model ApiBooking {
+  id               String      @id
+  accountId        String
+  account          ApiAccount  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  accountEmail     String
+  emailPassword    String?
+  accountName      String
+  otpCode          String?
+  shopId           Int
+  zoneId           Int
+  shopName         String
+  branch           String
+  zoneName         String
+  queueCode        String
+  queueNo          String
+  currentQueueCode String
+  currentQueueNo   String
+  waitingAhead     String
+  queueId          String
+  status           String      @default("WAITING_QUEUE") // WAITING_QUEUE, CALLING, COMPLETED, CANCELLED
+  statusText       String
+  reserverName     String
+  people           Int
+  reservationTime  DateTime
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @updatedAt
+  cancelledAt      DateTime?
+
+  @@index([accountId, status])
+}
+

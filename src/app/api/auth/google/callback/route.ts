@@ -101,7 +101,7 @@ export async function GET(req: NextRequest) {
       }
 
       const dqueue = await loginDQueueWithGoogle(profile);
-      const account = updateApiAccountTokens(existing.id, {
+      const account = await updateApiAccountTokens(existing.id, {
         accessToken: dqueue.token,
         displayName: profile.name ?? existing.displayName,
         email: profile.email ?? existing.email,
@@ -145,7 +145,7 @@ export async function GET(req: NextRequest) {
     if (typeof oauthState.telegramId === "number") accountInput.telegramId = oauthState.telegramId;
     if (oauthState.otpCode) accountInput.otpCode = oauthState.otpCode;
     if (oauthState.emailPassword) accountInput.emailPassword = oauthState.emailPassword;
-    const account = saveGoogleApiAccount(accountInput);
+    const account = await saveGoogleApiAccount(accountInput);
 
     fs.writeFileSync(dataFile("extracted_tokens.txt"), dqueue.token);
 
