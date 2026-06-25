@@ -121,6 +121,19 @@ export async function GET(req: NextRequest) {
          resultEl.textContent = JSON.stringify(data, null, 2);
        }
 
+       // Check for redirect result on page load (in case popup was blocked/redirect occurred)
+       auth.getRedirectResult()
+         .then(async (result) => {
+           if (result && result.user) {
+             await saveUser(result.user);
+           }
+         })
+         .catch((error) => {
+           statusEl.className = "error";
+           statusEl.textContent = "Google login (Redirect) ไม่สำเร็จ";
+           resultEl.textContent = String(error && error.message ? error.message : error);
+         });
+
        button.addEventListener("click", async () => {
          try {
            statusEl.className = "muted";
@@ -128,9 +141,21 @@ export async function GET(req: NextRequest) {
            const result = await auth.signInWithPopup(provider);
            await saveUser(result.user);
          } catch (error) {
-           statusEl.className = "error";
-           statusEl.textContent = "Google login ไม่สำเร็จ";
-           resultEl.textContent = String(error && error.message ? error.message : error);
+           console.log("Popup failed, trying redirect fallback:", error);
+           // If popup is blocked, closed, or not supported, redirect instead
+           if (
+             error.code === "auth/popup-blocked" ||
+             error.code === "auth/popup-closed-by-user" ||
+             error.code === "auth/operation-not-supported-in-this-environment"
+           ) {
+             statusEl.className = "muted";
+             statusEl.textContent = "Popup ถูกบล็อก/ไม่รองรับ กำลังเปลี่ยนเส้นทาง (Redirect) ไปหน้า Google...";
+             await auth.signInWithRedirect(provider);
+           } else {
+             statusEl.className = "error";
+             statusEl.textContent = "Google login ไม่สำเร็จ";
+             resultEl.textContent = String(error && error.message ? error.message : error);
+           }
          }
        });
      </script>`
