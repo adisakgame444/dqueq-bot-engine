@@ -206,6 +206,9 @@ function nodeCommand(scriptPath, args) {
   if (!runtimeEnv) {
     throw new Error("config ยังไม่พร้อม");
   }
+  const jrePath = app.isPackaged
+    ? path.join(process.resourcesPath, "jre")
+    : path.join(rootDir, "launcher-assets", "jre");
   return spawn(process.execPath, [scriptPath, ...args], {
     cwd: rootDir,
     env: {
@@ -213,6 +216,7 @@ function nodeCommand(scriptPath, args) {
       ...runtimeEnv,
       DQUEUE_DATA_DIR: externalDataDir,
       DQUEUE_PUBLIC_TUNNEL_FILE: publicTunnelFile,
+      DQUEUE_JRE_PATH: jrePath,
       ELECTRON_RUN_AS_NODE: "1",
       FORCE_COLOR: "0",
       NEXT_TELEMETRY_DISABLED: "1",

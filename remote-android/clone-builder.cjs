@@ -3,6 +3,10 @@ const path = require("path");
 const { execFile } = require("child_process");
 
 const PROJECT_ROOT = path.resolve(__dirname, "..");
+const BUNDLED_JAVA = process.env.DQUEUE_JRE_PATH
+  ? path.join(process.env.DQUEUE_JRE_PATH, "bin", "java.exe")
+  : path.join(PROJECT_ROOT, "launcher-assets", "jre", "bin", "java.exe");
+const JAVA_PATH = fs.existsSync(BUNDLED_JAVA) ? BUNDLED_JAVA : "java";
 const TEMPLATE_ROOT = path.join(
   PROJECT_ROOT,
   "scratch",
@@ -119,7 +123,7 @@ async function buildClone({ account, adbPath, device }) {
   sanitizeTemplateForApktool();
   setTemplatePackage(account.packageName);
   try {
-    await run("java", [
+    await run(JAVA_PATH, [
       "-jar",
       apktool,
       "b",
@@ -128,7 +132,7 @@ async function buildClone({ account, adbPath, device }) {
       unsignedBase,
       "-f",
     ]);
-    await run("java", [
+    await run(JAVA_PATH, [
       "-jar",
       apktool,
       "b",
@@ -137,7 +141,7 @@ async function buildClone({ account, adbPath, device }) {
       unsignedHdpi,
       "-f",
     ]);
-    await run("java", [
+    await run(JAVA_PATH, [
       "-jar",
       apktool,
       "b",
@@ -150,7 +154,7 @@ async function buildClone({ account, adbPath, device }) {
     setTemplatePackage(TEMPLATE_PACKAGE);
   }
 
-  await run("java", [
+  await run(JAVA_PATH, [
     "-jar",
     signer,
     "--apks",

@@ -213,6 +213,12 @@ function translateAdbError(error) {
       "(อย่าลืมกดปุ่ม 'บันทึกการเปลี่ยนแปลง' และ Restart BlueStacks หลังเปิดใช้งาน)"
     );
   }
+  if (/spawn java ENOENT/i.test(message)) {
+    return new Error(
+      "ไม่พบโปรแกรม Java ในเครื่องคอมพิวเตอร์เครื่องนี้ " +
+      "กรุณาดาวน์โหลดและติดตั้ง Java (JRE หรือ JDK 11 ขึ้นไป) เพื่อให้ระบบสามารถโคลนและติดตั้งแอปใหม่ได้"
+    );
+  }
   return error;
 }
 
@@ -758,6 +764,9 @@ const server = http.createServer(async (req, res) => {
       errMsg = "ไม่พบโปรแกรมจำลอง Android (เช่น BlueStacks) " +
         "กรุณาเปิด BlueStacks และตรวจสอบว่าได้เปิดใช้งานโหมด Android Debug Bridge (ADB) ในหน้าตั้งค่าจำลองเรียบร้อยแล้ว " +
         "(อย่าลืมกดปุ่ม 'บันทึกการเปลี่ยนแปลง' และ Restart BlueStacks หลังเปิดใช้งาน)";
+    } else if (/spawn java ENOENT/i.test(errMsg)) {
+      errMsg = "ไม่พบโปรแกรม Java ในเครื่องคอมพิวเตอร์เครื่องนี้ " +
+        "กรุณาดาวน์โหลดและติดตั้ง Java (JRE หรือ JDK 11 ขึ้นไป) เพื่อให้ระบบสามารถสร้างและดัดแปลงแอปจำลองใหม่ได้";
     }
     sendJson(res, 500, {
       ok: false,

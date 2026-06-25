@@ -99,6 +99,10 @@
         "filter": [
           "cloudflared.exe"
         ]
+      },
+      {
+        "from": "launcher-assets/jre",
+        "to": "jre"
       }
     ],
     "win": {
