@@ -22,13 +22,13 @@ type AccountsResponse = {
   error?: string;
 };
 
-const AGENT_ORIGIN =
+const DEFAULT_AGENT_ORIGIN =
   process.env.NEXT_PUBLIC_REMOTE_AGENT_URL || "https://remote.bothero.online";
 const PUBLIC_WEB_ORIGIN =
   process.env.NEXT_PUBLIC_PUBLIC_WEB_URL || "";
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${AGENT_ORIGIN.replace(/\/+$/, "")}${path}`, {
+async function request<T>(agentUrl: string, path: string, options: RequestInit = {}): Promise<T> {
+  const response = await fetch(`${agentUrl.replace(/\/+$/, "")}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -54,6 +54,29 @@ function badge(text: string, className = "") {
 }
 
 export default function AccountsPage() {
+  const [agentUrl, setAgentUrl] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      // 1. ดึงจาก Query Parameter (?agent=...)
+      const urlParams = new URLSearchParams(window.location.search);
+      const queryAgent = urlParams.get("agent");
+      if (queryAgent) {
+        localStorage.setItem("dqueue_agent_url", queryAgent);
+        return queryAgent;
+      }
+      // 2. ดึงจาก localStorage
+      const saved = localStorage.getItem("dqueue_agent_url");
+      if (saved) return saved;
+      // 3. หากเข้าจากภายนอกที่ไม่ใช่ localhost ให้วิ่งหาพอร์ตเครื่องจำลองตัวเอง (127.0.0.1:5100)
+      if (window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+        return "http://127.0.0.1:5100";
+      }
+      return window.location.origin;
+    }
+    return "http://127.0.0.1:5100";
+  });
+
+  const [inputUrl, setInputUrl] = useState(agentUrl);
+  const [showSettings, setShowSettings] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
@@ -63,7 +86,7 @@ export default function AccountsPage() {
 
   async function loadAccounts() {
     try {
-      const data = await request<AccountsResponse>("/api/accounts");
+      const data = await request<AccountsResponse>(agentUrl, "/api/accounts");
       setBusy(Boolean(data.busy));
       setAccounts(data.accounts || []);
       if (error) {
@@ -82,7 +105,7 @@ export default function AccountsPage() {
       if (!busy) loadAccounts();
     }, 5000);
     return () => window.clearInterval(timer);
-  }, [busy]);
+  }, [busy, agentUrl]);
 
   async function copyLink(account: Account) {
     const link = `${webOrigin}/app-ios/${account.id}`;
@@ -128,6 +151,7 @@ export default function AccountsPage() {
               perform(async () => {
                 setNotice("กำลังสร้างและติดตั้งบัญชีใหม่...");
                 const data = await request<{ ok: boolean; account: Account }>(
+                  agentUrl,
                   "/api/accounts",
                   { method: "POST", body: "{}" }
                 );
@@ -139,6 +163,62 @@ export default function AccountsPage() {
           </button>
         </div>
       </header>
+
+      {/* แถบการตั้งค่า Local Agent ของแต่ละเครื่อง */}
+      <div className="agent-settings-bar" style={{ marginBottom: "16px", display: "flex", gap: "10px", alignItems: "center", background: "#111827", padding: "10px 14px", borderRadius: "12px", border: "1px solid #1e293b" }}>
+        <span style={{ fontSize: "13px", color: "#94a3b8" }}>
+          🔗 <strong>การเชื่อมต่อ:</strong> Local Agent ปัจจุบันชี้ไปที่ <code style={{ color: "#38bdf8", background: "#1e293b", padding: "2px 6px", borderRadius: "4px" }}>{agentUrl}</code>
+        </span>
+        <button
+          type="button"
+          style={{ minHeight: "30px", fontSize: "12px", padding: "0 10px" }}
+          onClick={() => setShowSettings(!showSettings)}
+        >
+          {showSettings ? "ปิดการตั้งค่า" : "แก้ไขที่อยู่เชื่อมต่อ"}
+        </button>
+      </div>
+
+      {showSettings && (
+        <div className="agent-settings-panel" style={{ marginBottom: "16px", background: "#0f172a", padding: "16px", borderRadius: "12px", border: "1px solid #ff7900" }}>
+          <h3 style={{ margin: "0 0 10px", fontSize: "14px" }}>ระบุที่อยู่ของเครื่องจำลอง (Local Agent URL)</h3>
+          <div style={{ display: "flex", gap: "10px" }}>
+            <input
+              type="text"
+              value={inputUrl}
+              onChange={(e) => setInputUrl(e.target.value)}
+              placeholder="เช่น http://127.0.0.1:5100 หรือลิงก์ Cloudflare Tunnel ของท่าน"
+              style={{
+                flex: 1,
+                background: "#1e293b",
+                border: "1px solid #475569",
+                borderRadius: "8px",
+                padding: "8px 12px",
+                color: "#fff",
+                font: "inherit",
+                fontSize: "13px"
+              }}
+            />
+            <button
+              type="button"
+              className="primary"
+              style={{ minHeight: "36px", fontSize: "13px" }}
+              onClick={() => {
+                const normalized = inputUrl.trim();
+                localStorage.setItem("dqueue_agent_url", normalized);
+                setAgentUrl(normalized);
+                setShowSettings(false);
+                setNotice("เปลี่ยนที่อยู่เชื่อมต่อ Local Agent สำเร็จ");
+                setError(false);
+              }}
+            >
+              บันทึก
+            </button>
+          </div>
+          <p style={{ margin: "8px 0 0", color: "#64748b", fontSize: "11px" }}>
+            * ระบบเริ่มต้นจะเชื่อมต่อไปยังเครื่องของคุณเองที่ http://127.0.0.1:5100 หากต้องการเข้าคุมหน้าจอคิวจำลองจากภายนอกบ้านหรือมือถือ ให้ใส่ลิงก์ Cloudflare Tunnel ของเครื่องท่านลงในนี้
+          </p>
+        </div>
+      )}
 
       {notice ? (
         <div className={`notice visible${error ? " error" : ""}`}>{notice}</div>
@@ -175,7 +255,7 @@ export default function AccountsPage() {
                   </div>
                   <div className="detail-row">
                     <span className="detail-label">Local Agent</span>
-                    <span className="detail-value">{AGENT_ORIGIN}</span>
+                    <span className="detail-value">{agentUrl}</span>
                   </div>
                   <div className="detail-row">
                     <span className="detail-label">Package</span>
@@ -198,10 +278,14 @@ export default function AccountsPage() {
                     disabled={busy}
                     onClick={() =>
                       perform(async () => {
-                        await request(`/api/accounts/${account.id}`, {
-                          method: "PATCH",
-                          body: JSON.stringify({ enabled: !account.enabled }),
-                        });
+                        await request(
+                          agentUrl,
+                          `/api/accounts/${account.id}`,
+                          {
+                            method: "PATCH",
+                            body: JSON.stringify({ enabled: !account.enabled }),
+                          }
+                        );
                         setNotice(`${account.enabled ? "ปิด" : "เปิด"} ${account.name} แล้ว`);
                       })
                     }
@@ -220,10 +304,14 @@ export default function AccountsPage() {
                         );
                         if (confirmation !== required) return;
                         perform(async () => {
-                          await request(`/api/accounts/${account.id}`, {
-                            method: "DELETE",
-                            body: JSON.stringify({ confirm: confirmation }),
-                          });
+                          await request(
+                            agentUrl,
+                            `/api/accounts/${account.id}`,
+                            {
+                              method: "DELETE",
+                              body: JSON.stringify({ confirm: confirmation }),
+                            }
+                          );
                           setNotice(`ลบ ${account.name} แล้ว`);
                         });
                       }}
@@ -343,4 +431,3 @@ export default function AccountsPage() {
     </main>
   );
 }
-

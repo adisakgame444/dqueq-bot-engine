@@ -27,6 +27,13 @@
       "packageName": "me.deltaqueue.dqueue.account4",
       "enabled": true,
       "protected": false
+    },
+    {
+      "id": 5,
+      "name": "Account 5",
+      "packageName": "me.deltaqueue.dqueue.account5",
+      "enabled": true,
+      "protected": false
     }
   ]
 }
