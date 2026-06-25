@@ -12,8 +12,29 @@ const DATA_DIR = process.env.DQUEUE_DATA_DIR || path.resolve(__dirname, "..");
 const PUBLIC_TUNNEL_FILE =
   process.env.DQUEUE_PUBLIC_TUNNEL_FILE ||
   path.join(DATA_DIR, "public-tunnel.json");
-const ADB_PATH =
-  process.env.ADB_PATH || "C:\\Program Files\\BlueStacks_nxt\\HD-Adb.exe";
+function resolveAdbPath() {
+  if (process.env.ADB_PATH) return process.env.ADB_PATH;
+  const candidates = [
+    "C:\\Program Files\\BlueStacks_nxt\\HD-Adb.exe",
+    "D:\\Program Files\\BlueStacks_nxt\\HD-Adb.exe",
+    "E:\\Program Files\\BlueStacks_nxt\\HD-Adb.exe"
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
+  }
+  try {
+    const { execSync } = require("child_process");
+    const output = execSync('reg query "HKLM\\SOFTWARE\\BlueStacks_nxt" /v InstallDir', { encoding: 'utf8', windowsHide: true });
+    const match = output.match(/InstallDir\s+REG_SZ\s+(.+)/);
+    if (match && match[1]) {
+      const p = path.join(match[1].trim(), "HD-Adb.exe");
+      if (fs.existsSync(p)) return p;
+    }
+  } catch (e) {}
+  return "C:\\Program Files\\BlueStacks_nxt\\HD-Adb.exe";
+}
+
+const ADB_PATH = resolveAdbPath();
 let DEVICE = process.env.ANDROID_DEVICE || "127.0.0.1:5555";
 const ALLOWED_ORIGINS = (process.env.REMOTE_ANDROID_ALLOWED_ORIGINS || "*")
   .split(",")
@@ -71,7 +92,8 @@ function adbOnce(args, options = {}) {
 // ดึงพอร์ตทั้งหมดที่เปิดขึ้นมาของ BlueStacks จากไฟล์คอนฟิก
 function getBlueStacksPorts() {
   const ports = new Set();
-  const confPath = "C:\\ProgramData\\BlueStacks_nxt\\bluestacks.conf";
+  const programData = process.env.ProgramData || "C:\\ProgramData";
+  const confPath = path.join(programData, "BlueStacks_nxt", "bluestacks.conf");
   try {
     if (fs.existsSync(confPath)) {
       const content = fs.readFileSync(confPath, "utf8");
