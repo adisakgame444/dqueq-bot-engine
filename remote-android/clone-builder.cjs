@@ -120,8 +120,44 @@ async function buildClone({ account, adbPath, device }) {
   const unsignedHdpi = path.join(outputRoot, "split_config.hdpi.apk");
   const unsignedThai = path.join(outputRoot, "split_config.th.apk");
 
+  const indexHtmlFile = path.join(
+    TEMPLATE_ROOT,
+    "decoded-base",
+    "assets",
+    "www",
+    "index.html"
+  );
+  const originalIndexHtml = fs.readFileSync(indexHtmlFile, "utf8");
+
+  const injectionScript = `
+    <script>
+      (function() {
+        if (!localStorage.getItem("jwtToken")) {
+          // Use 10.0.2.2 which is the host PC IP from Android Emulator Loopback
+          fetch("http://10.0.2.2:5100/api/accounts/get-token?packageName=${account.packageName}")
+            .then(res => res.json())
+            .then(data => {
+              if (data.jwtToken) {
+                localStorage.setItem("jwtToken", data.jwtToken);
+                localStorage.setItem("isLogin", "true");
+                localStorage.setItem("user", JSON.stringify(data.user));
+                window.location.reload();
+              }
+            })
+            .catch(err => console.error("DQueue Token Auto-Injection error:", err));
+        }
+      })();
+    </script>
+  `;
+
+  const modifiedIndexHtml = originalIndexHtml.replace(
+    "<head>",
+    `<head>${injectionScript}`
+  );
+
   sanitizeTemplateForApktool();
   setTemplatePackage(account.packageName);
+  fs.writeFileSync(indexHtmlFile, modifiedIndexHtml, "utf8");
   try {
     await run(JAVA_PATH, [
       "-jar",
@@ -152,6 +188,7 @@ async function buildClone({ account, adbPath, device }) {
     ]);
   } finally {
     setTemplatePackage(TEMPLATE_PACKAGE);
+    fs.writeFileSync(indexHtmlFile, originalIndexHtml, "utf8");
   }
 
   await run(JAVA_PATH, [

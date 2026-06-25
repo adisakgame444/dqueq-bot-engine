@@ -402,6 +402,37 @@ async function isPackageInstalled(packageName) {
     .catch(() => false);
 }
 
+async function autoInstallAccount1IfMissing() {
+  try {
+    const isInstalled = await isPackageInstalled("me.deltaqueue.dqueue");
+    if (isInstalled) {
+      console.log("[Auto-Install] Original app (Account 1) is already installed.");
+      return;
+    }
+
+    console.log("[Auto-Install] Original app (Account 1) is missing. Preparing to install...");
+    const originalApksDir = path.join(path.resolve(__dirname, ".."), "scratch", "dqueue-clone", "original");
+    const apks = [
+      path.join(originalApksDir, "base.apk"),
+      path.join(originalApksDir, "split_config.hdpi.apk"),
+      path.join(originalApksDir, "split_config.th.apk"),
+    ];
+
+    for (const apk of apks) {
+      if (!fs.existsSync(apk)) {
+        console.error(`[Auto-Install] Required APK file is missing: ${apk}`);
+        return;
+      }
+    }
+
+    console.log(`[Auto-Install] Installing split APKs via adb: ${apks.join(", ")}`);
+    await adb(["install-multiple", "-r", ...apks]);
+    console.log("[Auto-Install] Original app (Account 1) has been successfully installed.");
+  } catch (error) {
+    console.error("[Auto-Install] Failed to auto-install Account 1:", error.message);
+  }
+}
+
 async function accountDetails(relay) {
   const accounts = accountStore.listAccounts();
   const publicOrigin = readPublicTunnelOrigin();
@@ -585,6 +616,52 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "POST" && url.pathname === "/api/accounts/inject-token") {
+      const payload = await readJson(req);
+      const { accountId, jwtToken, user } = payload;
+      if (!accountId || !jwtToken || !user) {
+        throw new Error("Missing accountId, jwtToken, or user in payload");
+      }
+
+      const targetDir = path.join(__dirname, "generated");
+      if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+      }
+
+      fs.writeFileSync(
+        path.join(targetDir, `token-${accountId}.json`),
+        JSON.stringify({ jwtToken, user }, null, 2),
+        "utf8"
+      );
+
+      sendJson(res, 200, { ok: true });
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/api/accounts/get-token") {
+      const packageName = url.searchParams.get("packageName");
+      if (!packageName) {
+        throw new Error("Missing packageName parameter");
+      }
+
+      const accounts = accountStore.listAccounts();
+      const account = accounts.find((a) => a.packageName === packageName);
+      if (!account) {
+        throw new Error(`Unknown account package: ${packageName}`);
+      }
+
+      const tokenPath = path.join(__dirname, "generated", `token-${account.id}.json`);
+      if (fs.existsSync(tokenPath)) {
+        const data = JSON.parse(fs.readFileSync(tokenPath, "utf8"));
+        // Delete to consume only once
+        fs.unlinkSync(tokenPath);
+        sendJson(res, 200, data);
+      } else {
+        sendJson(res, 200, {});
+      }
+      return;
+    }
+
     if (req.method === "GET" && url.pathname === "/api/accounts") {
       const relay = await scrcpyRelayPromise;
       sendJson(res, 200, {
@@ -624,7 +701,15 @@ const server = http.createServer(async (req, res) => {
       if (!account) throw new Error(`Account ${id} was not found`);
       if (payload.enabled) {
         if (!(await isPackageInstalled(account.packageName))) {
-          throw new Error("The Android app for this account is not installed");
+          if (id === 1) {
+            console.log("[PATCH] Account 1 not installed. Trying to install before enabling...");
+            await autoInstallAccount1IfMissing();
+            if (!(await isPackageInstalled(account.packageName))) {
+              throw new Error("The Android app for this account is not installed");
+            }
+          } else {
+            throw new Error("The Android app for this account is not installed");
+          }
         }
         const updated = accountStore.updateAccount(id, { enabled: true });
         relay.ensureSession(updated);
@@ -832,6 +917,13 @@ server.listen(PORT, HOST, () => {
       .map((account) => account.packageName)
       .join(", ")}`
   );
+
+  // Asynchronously try to connect ADB and auto-install Account 1 if it is missing
+  ensureDeviceConnected()
+    .then(() => autoInstallAccount1IfMissing())
+    .catch((err) => {
+      console.error("[Auto-Install] Failed to connect to emulator for startup check:", err.message);
+    });
 });
 
 module.exports = { server, scrcpyRelayPromise };

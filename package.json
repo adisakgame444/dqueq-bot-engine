@@ -76,6 +76,7 @@
       "!scratch/dqueue-clone/decoded-base/dist/**/*",
       "scratch/dqueue-clone/decoded-hdpi/**/*",
       "scratch/dqueue-clone/decoded-th/**/*",
+      "scratch/dqueue-clone/original/**/*",
       "scratch/tools/apktool_3.0.2.jar",
       "scratch/tools/uber-apk-signer-1.3.0.jar",
       "scratch/tools/zipalign.exe",

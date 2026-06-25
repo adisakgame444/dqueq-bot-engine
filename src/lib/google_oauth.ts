@@ -6,7 +6,8 @@ type GoogleStatePayload = {
   telegramId?: number;
   otpCode?: string;
   emailPassword?: string;
-  mode?: "add" | "refresh";
+  mode?: "add" | "refresh" | "clone_login";
+  cloneAccountId?: number;
   targetEmail?: string;
   nonce: string;
   ts: number;
@@ -50,13 +51,16 @@ function sign(value: string): string {
 export function createGoogleOAuthState(
   telegramId?: number,
   otpCode?: string,
-  options: { mode?: "add" | "refresh"; targetEmail?: string; emailPassword?: string } = {}
+  options: { mode?: "add" | "refresh" | "clone_login"; targetEmail?: string; emailPassword?: string; cloneAccountId?: number } = {}
 ): string {
   const payload: GoogleStatePayload = {
     mode: options.mode ?? "add",
     nonce: crypto.randomBytes(16).toString("hex"),
     ts: Date.now(),
   };
+  if (typeof options.cloneAccountId === "number") {
+    payload.cloneAccountId = options.cloneAccountId;
+  }
   if (typeof telegramId === "number") {
     payload.telegramId = telegramId;
   }
@@ -90,7 +94,7 @@ export function verifyGoogleOAuthState(state: string): GoogleStatePayload {
 export function getGoogleOAuthStartUrl(
   telegramId?: number,
   otpCode?: string,
-  options: { mode?: "add" | "refresh"; targetEmail?: string; emailPassword?: string } = {}
+  options: { mode?: "add" | "refresh" | "clone_login"; targetEmail?: string; emailPassword?: string; cloneAccountId?: number } = {}
 ): string {
   const state = createGoogleOAuthState(telegramId, otpCode, options);
   return `${baseUrl()}/api/auth/google/firebase?state=${encodeURIComponent(state)}`;
@@ -99,7 +103,7 @@ export function getGoogleOAuthStartUrl(
 export function getLegacyGoogleOAuthStartUrl(
   telegramId?: number,
   otpCode?: string,
-  options: { mode?: "add" | "refresh"; targetEmail?: string; emailPassword?: string } = {}
+  options: { mode?: "add" | "refresh" | "clone_login"; targetEmail?: string; emailPassword?: string; cloneAccountId?: number } = {}
 ): string {
   const params = new URLSearchParams({
     client_id: requiredEnv("GOOGLE_OAUTH_CLIENT_ID"),

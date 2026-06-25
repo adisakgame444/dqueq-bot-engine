@@ -91,6 +91,24 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    if (oauthState.mode === "clone_login") {
+      const cloneAccountId = oauthState.cloneAccountId;
+      const dqueue = await loginDQueueWithGoogle({
+        sub: uid,
+        name: displayName,
+        email,
+        picture: photoURL,
+      });
+
+      return NextResponse.json({
+        ok: true,
+        mode: "clone_login",
+        cloneAccountId,
+        token: dqueue.token,
+        user: dqueue.raw.validate || dqueue.raw,
+      });
+    }
+
     const dqueue = await loginDQueueWithGoogle({
       sub: uid,
       name: displayName,

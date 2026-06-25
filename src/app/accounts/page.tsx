@@ -289,6 +289,16 @@ export default function AccountsPage() {
                   <a href={`/app-ios/${account.id}?agent=${encodeURIComponent(shareableAgentUrl)}`} target="_blank" rel="noreferrer">
                     เปิดหน้าแอป iOS
                   </a>
+                  {account.id !== 1 ? (
+                    <a
+                      href={`/api/auth/google/start-clone?cloneAccountId=${account.id}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ borderColor: "#4ade80", color: "#4ade80", background: "rgba(74, 222, 128, 0.05)" }}
+                    >
+                      เชื่อมต่อ Google (Login)
+                    </a>
+                  ) : null}
                   <button type="button" disabled={busy} onClick={() => copyLink(account)}>
                     คัดลอกลิงก์ส่งให้คนอื่น
                   </button>
