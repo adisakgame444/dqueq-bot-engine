@@ -111,6 +111,26 @@ function getBlueStacksPorts() {
   return Array.from(ports);
 }
 
+// ดึงเวอร์ชัน Android ของอุปกรณ์เครื่องจำลอง
+async function getDeviceAndroidVersion(deviceIp) {
+  try {
+    const output = await new Promise((resolve) => {
+      execFile(
+        ADB_PATH,
+        ["-s", deviceIp, "shell", "getprop", "ro.build.version.release"],
+        { timeout: 1500, windowsHide: true },
+        (err, stdout) => {
+          if (err) resolve("");
+          else resolve(String(stdout).trim());
+        }
+      );
+    });
+    return output;
+  } catch {
+    return "";
+  }
+}
+
 // ระบบสแกนพอร์ตและเชื่อมต่อพอร์ตที่รันอยู่จริง
 async function autoDetectDevice() {
   if (process.env.ANDROID_DEVICE) {
@@ -160,11 +180,24 @@ async function autoDetectDevice() {
     }
 
     if (connectedDevices.length > 0) {
-      console.log(`[Auto-Detect] พบเครื่องจำลองที่กำลังรันอยู่: ${connectedDevices[0]}`);
-      return connectedDevices[0];
+      let android11Device = null;
+      for (const dev of connectedDevices) {
+        const ver = await getDeviceAndroidVersion(dev);
+        if (ver === "11") {
+          android11Device = dev;
+          break;
+        }
+      }
+      if (android11Device) {
+        console.log(`[Auto-Detect] พบเครื่องจำลอง Android 11 ที่กำลังรันอยู่: ${android11Device}`);
+        return android11Device;
+      }
+      console.warn(`[Auto-Detect] พบเครื่องจำลองกำลังรันอยู่ ${connectedDevices.length} เครื่อง แต่ไม่ใช่ Android 11 (รองรับเฉพาะ Android 11 เท่านั้น)`);
+      throw new Error("ตรวจพบเครื่องจำลอง Android กำลังรันอยู่ แต่ไม่ใช่รุ่น Android 11! ระบบจัดการสตรีมจอโคลนนี้รองรับและทำงานได้สมบูรณ์เฉพาะกับ BlueStacks Instance Android 11 เท่านั้น กรุณาเปิดเครื่องจำลอง Android 11");
     }
   } catch (err) {
     console.error("[Auto-Detect] เกิดข้อผิดพลาดในการตรวจสอบ adb devices:", err.message);
+    throw err;
   }
 
   return `127.0.0.1:${candidatePorts[0] || 5555}`;
