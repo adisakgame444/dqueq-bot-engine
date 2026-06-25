@@ -14,7 +14,7 @@ const PUBLIC_TUNNEL_FILE =
   path.join(DATA_DIR, "public-tunnel.json");
 const ADB_PATH =
   process.env.ADB_PATH || "C:\\Program Files\\BlueStacks_nxt\\HD-Adb.exe";
-const DEVICE = process.env.ANDROID_DEVICE || "127.0.0.1:5556";
+let DEVICE = process.env.ANDROID_DEVICE || "127.0.0.1:5555";
 const ALLOWED_ORIGINS = (process.env.REMOTE_ANDROID_ALLOWED_ORIGINS || "*")
   .split(",")
   .map((origin) => origin.trim())
@@ -68,6 +68,117 @@ function adbOnce(args, options = {}) {
   });
 }
 
+// ดึงพอร์ตทั้งหมดที่เปิดขึ้นมาของ BlueStacks จากไฟล์คอนฟิก
+function getBlueStacksPorts() {
+  const ports = new Set();
+  const confPath = "C:\\ProgramData\\BlueStacks_nxt\\bluestacks.conf";
+  try {
+    if (fs.existsSync(confPath)) {
+      const content = fs.readFileSync(confPath, "utf8");
+      const regex = /bst\.instance\.[^.]+\.(?:status\.)?adb_port="(\d+)"/g;
+      let match;
+      while ((match = regex.exec(content)) !== null) {
+        if (match[1]) {
+          ports.add(Number(match[1]));
+        }
+      }
+    }
+  } catch (err) {
+    console.error("[Auto-Detect] ไม่สามารถอ่านไฟล์ bluestacks.conf ได้:", err.message);
+  }
+  return Array.from(ports);
+}
+
+// ระบบสแกนพอร์ตและเชื่อมต่อพอร์ตที่รันอยู่จริง
+async function autoDetectDevice() {
+  if (process.env.ANDROID_DEVICE) {
+    return process.env.ANDROID_DEVICE;
+  }
+
+  const bsPorts = getBlueStacksPorts();
+  const defaultPorts = [5555, 5556, 5557, 5565, 5575, 5585];
+  const candidatePorts = Array.from(new Set([...bsPorts, ...defaultPorts]));
+
+  // ทดลองสั่ง adb connect กับทุกพอร์ตที่เป็นไปได้แบบรวดเร็ว
+  for (const port of candidatePorts) {
+    const target = `127.0.0.1:${port}`;
+    try {
+      await new Promise((resolve) => {
+        execFile(
+          ADB_PATH,
+          ["connect", target],
+          { timeout: 800, windowsHide: true },
+          () => resolve()
+        );
+      });
+    } catch {}
+  }
+
+  // ค้นหาว่าตัวไหนเชื่อมต่อสำเร็จจริง
+  try {
+    const devicesOutput = await new Promise((resolve, reject) => {
+      execFile(
+        ADB_PATH,
+        ["devices"],
+        { timeout: 2000, windowsHide: true },
+        (err, stdout) => {
+          if (err) reject(err);
+          else resolve(stdout);
+        }
+      );
+    });
+
+    const lines = devicesOutput.split(/\r?\n/);
+    const connectedDevices = [];
+    for (const line of lines) {
+      const parts = line.trim().split(/\s+/);
+      if (parts.length === 2 && parts[1] === "device") {
+        connectedDevices.push(parts[0]);
+      }
+    }
+
+    if (connectedDevices.length > 0) {
+      console.log(`[Auto-Detect] พบเครื่องจำลองที่กำลังรันอยู่: ${connectedDevices[0]}`);
+      return connectedDevices[0];
+    }
+  } catch (err) {
+    console.error("[Auto-Detect] เกิดข้อผิดพลาดในการตรวจสอบ adb devices:", err.message);
+  }
+
+  return `127.0.0.1:${candidatePorts[0] || 5555}`;
+}
+
+async function ensureDeviceConnected() {
+  if (process.env.ANDROID_DEVICE) {
+    await connectAdb();
+    return;
+  }
+
+  let isConnected = false;
+  try {
+    const devicesOutput = await new Promise((resolve) => {
+      execFile(
+        ADB_PATH,
+        ["devices"],
+        { timeout: 1500, windowsHide: true },
+        (err, stdout) => {
+          resolve(err ? "" : stdout);
+        }
+      );
+    });
+    isConnected = devicesOutput.includes(DEVICE) && devicesOutput.includes("\tdevice");
+  } catch {}
+
+  if (isConnected) {
+    return;
+  }
+
+  console.log(`[Auto-Detect] ตรวจไม่พบอุปกรณ์ ${DEVICE} กำลังเริ่มทำการสแกนหาอุปกรณ์จำลองจำลอง...`);
+  const detected = await autoDetectDevice();
+  DEVICE = detected;
+  await connectAdb();
+}
+
 function connectAdb() {
   if (adbConnectPromise) return adbConnectPromise;
   adbConnectPromise = new Promise((resolve, reject) => {
@@ -93,10 +204,20 @@ function connectAdb() {
   return adbConnectPromise;
 }
 
-async function adb(args, options = {}) {
-  if (DEVICE.includes(":")) {
-    await connectAdb();
+function translateAdbError(error) {
+  const message = String(error && error.message ? error.message : error);
+  if (/device .*not found|device offline|no devices\/emulators found|actively refused|connection refused/i.test(message)) {
+    return new Error(
+      "ไม่พบโปรแกรมจำลอง Android (เช่น BlueStacks) " +
+      "กรุณาเปิด BlueStacks และตรวจสอบว่าได้เปิดใช้งานโหมด Android Debug Bridge (ADB) ในหน้าตั้งค่าจำลองเรียบร้อยแล้ว " +
+      "(อย่าลืมกดปุ่ม 'บันทึกการเปลี่ยนแปลง' และ Restart BlueStacks หลังเปิดใช้งาน)"
+    );
   }
+  return error;
+}
+
+async function adb(args, options = {}) {
+  await ensureDeviceConnected();
   try {
     return await adbOnce(args, options);
   } catch (error) {
@@ -106,9 +227,15 @@ async function adb(args, options = {}) {
       /device .* not found|device offline|no devices\/emulators found/i.test(
         message
       );
-    if (!reconnectable) throw error;
-    await connectAdb();
-    return adbOnce(args, options);
+    if (reconnectable) {
+      try {
+        await connectAdb();
+        return await adbOnce(args, options);
+      } catch (retryError) {
+        throw translateAdbError(retryError);
+      }
+    }
+    throw translateAdbError(error);
   }
 }
 
@@ -626,9 +753,15 @@ const server = http.createServer(async (req, res) => {
 
     sendJson(res, 404, { ok: false, error: "Not found" });
   } catch (error) {
+    let errMsg = String(error && error.message ? error.message : error);
+    if (/device .*not found|device offline|no devices\/emulators found|actively refused|connection refused/i.test(errMsg)) {
+      errMsg = "ไม่พบโปรแกรมจำลอง Android (เช่น BlueStacks) " +
+        "กรุณาเปิด BlueStacks และตรวจสอบว่าได้เปิดใช้งานโหมด Android Debug Bridge (ADB) ในหน้าตั้งค่าจำลองเรียบร้อยแล้ว " +
+        "(อย่าลืมกดปุ่ม 'บันทึกการเปลี่ยนแปลง' และ Restart BlueStacks หลังเปิดใช้งาน)";
+    }
     sendJson(res, 500, {
       ok: false,
-      error: String(error && error.message ? error.message : error),
+      error: errMsg,
     });
   }
 });
@@ -638,7 +771,7 @@ const scrcpyRelayPromise = import("./multi-scrcpy-relay.mjs").then(
     attachMultiScrcpyRelay({
       server,
       adbPath: ADB_PATH,
-      device: DEVICE,
+      device: () => DEVICE,
       serverPath: SCRCPY_SERVER_FILE,
       accounts: accountStore
         .listAccounts()

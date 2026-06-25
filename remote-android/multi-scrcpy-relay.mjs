@@ -26,10 +26,11 @@ const DISPLAY_DENSITY = 460;
 let adbConnectPromise = null;
 
 function runAdbOnce(adbPath, device, args, options = {}) {
+  const devStr = typeof device === "function" ? device() : String(device);
   return new Promise((resolve, reject) => {
     execFile(
       adbPath,
-      ["-s", device, ...args],
+      ["-s", devStr, ...args],
       {
         encoding: options.encoding === "buffer" ? null : "utf8",
         maxBuffer: options.maxBuffer || 12 * 1024 * 1024,
@@ -48,11 +49,12 @@ function runAdbOnce(adbPath, device, args, options = {}) {
 }
 
 function connectAdb(adbPath, device) {
+  const devStr = typeof device === "function" ? device() : String(device);
   if (adbConnectPromise) return adbConnectPromise;
   adbConnectPromise = new Promise((resolve, reject) => {
     execFile(
       adbPath,
-      ["connect", device],
+      ["connect", devStr],
       {
         encoding: "utf8",
         maxBuffer: 1024 * 1024,
@@ -73,7 +75,8 @@ function connectAdb(adbPath, device) {
 }
 
 async function runAdb(adbPath, device, args, options = {}) {
-  if (device.includes(":")) {
+  const devStr = typeof device === "function" ? device() : String(device);
+  if (devStr.includes(":")) {
     await connectAdb(adbPath, device);
   }
   try {
@@ -81,7 +84,7 @@ async function runAdb(adbPath, device, args, options = {}) {
   } catch (error) {
     const message = String(error?.message || error);
     const reconnectable =
-      device.includes(":") &&
+      devStr.includes(":") &&
       /device .* not found|device offline|no devices\/emulators found/i.test(
         message
       );
@@ -313,7 +316,7 @@ function createSession({
 
       const args = [
         "-s",
-        device,
+        typeof device === "function" ? device() : String(device),
         "shell",
         `CLASSPATH=${deviceServerPath}`,
         "app_process",
