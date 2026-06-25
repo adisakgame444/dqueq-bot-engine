@@ -100,6 +100,15 @@ export default function AccountsPage() {
   }
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("dqueue_agent_url");
+      if (!saved && agentUrl) {
+        localStorage.setItem("dqueue_agent_url", agentUrl);
+      }
+    }
+  }, [agentUrl]);
+
+  useEffect(() => {
     loadAccounts();
     const timer = window.setInterval(() => {
       if (!busy) loadAccounts();

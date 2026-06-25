@@ -15,12 +15,20 @@ const DEVICE_VISIBLE_HEIGHT = isIosView
 const H264_CODEC = 1748121140;
 const accountMatch = /^\/(?:account|app|app-ios)\/(\d+)$/.exec(location.pathname);
 const SESSION_ID = accountMatch ? Number(accountMatch[1]) : 1;
+let defaultAgent = "";
+if (typeof window !== "undefined") {
+  if (window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+    defaultAgent = "http://127.0.0.1:5100";
+  } else {
+    defaultAgent = window.location.origin;
+  }
+}
 const configuredAgentOrigin =
   (typeof localStorage !== "undefined" && localStorage.getItem("dqueue_agent_url")) ||
   window.__DQUEUE_AGENT_URL__ ||
   document.querySelector('meta[name="dqueue-agent-url"]')?.content ||
-  "";
-const AGENT_HTTP_ORIGIN = String(configuredAgentOrigin || location.origin).replace(/\/+$/, "");
+  defaultAgent;
+const AGENT_HTTP_ORIGIN = String(configuredAgentOrigin).replace(/\/+$/, "");
 const AGENT_WS_ORIGIN = AGENT_HTTP_ORIGIN.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
 const API_BASE = `${AGENT_HTTP_ORIGIN}/api/account/${SESSION_ID}`;
 const screen = document.getElementById("screen");
