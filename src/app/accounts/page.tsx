@@ -19,6 +19,7 @@ type AccountsResponse = {
   ok: boolean;
   busy?: boolean;
   accounts?: Account[];
+  publicOrigin?: string;
   error?: string;
 };
 
@@ -66,8 +67,8 @@ export default function AccountsPage() {
       // 2. ดึงจาก localStorage
       const saved = localStorage.getItem("dqueue_agent_url");
       if (saved) return saved;
-      // 3. หากเข้าจากภายนอกที่ไม่ใช่ localhost ให้วิ่งหาพอร์ตเครื่องจำลองตัวเอง (127.0.0.1:5100)
-      if (window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+      // 3. หากเข้าจากเว็บกลาง bothero.online ให้วิ่งหาพอร์ตเครื่องจำลองตัวเอง (127.0.0.1:5100)
+      if (window.location.hostname === "www.bothero.online" || window.location.hostname === "bothero.online") {
         return "http://127.0.0.1:5100";
       }
       return window.location.origin;
@@ -81,14 +82,23 @@ export default function AccountsPage() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState(false);
+  const [agentPublicOrigin, setAgentPublicOrigin] = useState<string>("");
 
   const webOrigin = useMemo(publicOrigin, []);
+
+  const shareableAgentUrl = useMemo(() => {
+    if (agentPublicOrigin) return agentPublicOrigin;
+    return agentUrl;
+  }, [agentPublicOrigin, agentUrl]);
 
   async function loadAccounts() {
     try {
       const data = await request<AccountsResponse>(agentUrl, "/api/accounts");
       setBusy(Boolean(data.busy));
       setAccounts(data.accounts || []);
+      if (data.publicOrigin) {
+        setAgentPublicOrigin(data.publicOrigin);
+      }
       if (error) {
         setNotice("");
         setError(false);
@@ -117,7 +127,7 @@ export default function AccountsPage() {
   }, [busy, agentUrl]);
 
   async function copyLink(account: Account) {
-    const link = `${webOrigin}/app-ios/${account.id}`;
+    const link = `${webOrigin}/app-ios/${account.id}?agent=${encodeURIComponent(shareableAgentUrl)}`;
     await navigator.clipboard.writeText(link);
     setNotice(`คัดลอกลิงก์ ${account.name} แล้ว: ${link}`);
     setError(false);
@@ -149,7 +159,7 @@ export default function AccountsPage() {
           </p>
         </div>
         <div className="toolbar">
-          <a href="/app-ios/1" target="_blank" rel="noreferrer">
+          <a href={`/app-ios/1?agent=${encodeURIComponent(shareableAgentUrl)}`} target="_blank" rel="noreferrer">
             เปิด Account 1
           </a>
           <button
@@ -237,7 +247,7 @@ export default function AccountsPage() {
         {accounts.length ? (
           accounts.map((account) => {
             const sessionState = account.session?.state || "stopped";
-            const publicLink = `${webOrigin}/app-ios/${account.id}`;
+            const publicLink = `${webOrigin}/app-ios/${account.id}?agent=${encodeURIComponent(shareableAgentUrl)}`;
             return (
               <article className="card" key={account.id}>
                 <div className="account-top">
@@ -252,11 +262,11 @@ export default function AccountsPage() {
                 <div className="details">
                   <div className="detail-row">
                     <span className="detail-label">หน้าแอป iOS</span>
-                    <span className="detail-value">{`${webOrigin}/app-ios/${account.id}`}</span>
+                    <span className="detail-value">{`${webOrigin}/app-ios/${account.id}?agent=${encodeURIComponent(shareableAgentUrl)}`}</span>
                   </div>
                   <div className="detail-row">
                     <span className="detail-label">หน้าแอป Android</span>
-                    <span className="detail-value">{`${webOrigin}/app/${account.id}`}</span>
+                    <span className="detail-value">{`${webOrigin}/app/${account.id}?agent=${encodeURIComponent(shareableAgentUrl)}`}</span>
                   </div>
                   <div className="detail-row">
                     <span className="detail-label">ลิงก์ส่งให้คนอื่น</span>
@@ -273,10 +283,10 @@ export default function AccountsPage() {
                 </div>
 
                 <div className="actions">
-                  <a href={`/app/${account.id}`} target="_blank" rel="noreferrer">
+                  <a href={`/app/${account.id}?agent=${encodeURIComponent(shareableAgentUrl)}`} target="_blank" rel="noreferrer">
                     เปิดหน้าแอป Android
                   </a>
-                  <a href={`/app-ios/${account.id}`} target="_blank" rel="noreferrer">
+                  <a href={`/app-ios/${account.id}?agent=${encodeURIComponent(shareableAgentUrl)}`} target="_blank" rel="noreferrer">
                     เปิดหน้าแอป iOS
                   </a>
                   <button type="button" disabled={busy} onClick={() => copyLink(account)}>

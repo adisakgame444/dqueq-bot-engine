@@ -16,14 +16,22 @@ const H264_CODEC = 1748121140;
 const accountMatch = /^\/(?:account|app|app-ios)\/(\d+)$/.exec(location.pathname);
 const SESSION_ID = accountMatch ? Number(accountMatch[1]) : 1;
 let defaultAgent = "";
+let queryAgent = null;
 if (typeof window !== "undefined") {
-  if (window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+  const urlParams = new URLSearchParams(window.location.search);
+  queryAgent = urlParams.get("agent");
+  if (queryAgent && typeof localStorage !== "undefined") {
+    localStorage.setItem("dqueue_agent_url", queryAgent);
+  }
+
+  if (window.location.hostname === "www.bothero.online" || window.location.hostname === "bothero.online") {
     defaultAgent = "http://127.0.0.1:5100";
   } else {
     defaultAgent = window.location.origin;
   }
 }
 const configuredAgentOrigin =
+  queryAgent ||
   (typeof localStorage !== "undefined" && localStorage.getItem("dqueue_agent_url")) ||
   window.__DQUEUE_AGENT_URL__ ||
   document.querySelector('meta[name="dqueue-agent-url"]')?.content ||
@@ -379,13 +387,17 @@ function connectScrcpy() {
   socket.addEventListener("close", () => {
     disposeDecoder();
     if (!stopped) {
-      if (!fallbackReason) showPngFallback("stream disconnected");
+      if (!fallbackReason || fallbackReason === "waiting for virtual display") {
+        showPngFallback("stream disconnected");
+      }
       window.setTimeout(connectScrcpy, 2000);
     }
   });
 
   socket.addEventListener("error", () => {
-    if (!fallbackReason) showPngFallback("stream unavailable");
+    if (!fallbackReason || fallbackReason === "waiting for virtual display") {
+      showPngFallback("stream unavailable");
+    }
   });
 }
 
