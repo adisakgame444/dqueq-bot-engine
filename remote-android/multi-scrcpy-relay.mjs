@@ -166,7 +166,7 @@ async function connectControlSocket(port) {
   throw lastError || new Error("Unable to connect to scrcpy control socket");
 }
 
-async function killScrcpyProcesses(adbPath, device) {
+async function killScrcpyProcesses(adbPath, device, targetScid) {
   try {
     const output = await runAdbOnce(adbPath, device, ["shell", "ps -A"]).catch(() => "");
     if (!output) return;
@@ -179,7 +179,9 @@ async function killScrcpyProcesses(adbPath, device) {
           if (/^\d+$/.test(pid)) {
             const cmdline = await runAdbOnce(adbPath, device, ["shell", `cat /proc/${pid}/cmdline`]).catch(() => "");
             if (cmdline.includes("com.genymobile.scrcpy.Server")) {
-              await runAdbOnce(adbPath, device, ["shell", "kill", "-9", pid]).catch(() => {});
+              if (targetScid && cmdline.includes(targetScid)) {
+                await runAdbOnce(adbPath, device, ["shell", "kill", "-9", pid]).catch(() => {});
+              }
             }
           }
         }
@@ -297,7 +299,7 @@ function createSession({
       broadcastJson({ type: "state", state, detail });
 
       // Kill any running scrcpy server instances on the Android device to ensure a clean restart
-      await killScrcpyProcesses(adbPath, device);
+      await killScrcpyProcesses(adbPath, device, scid.padStart(8, "0"));
 
       // Force Android to hide navigation and status bars globally for all apps
       await runAdb(adbPath, device, ["shell", "settings", "put", "global", "policy_control", "immersive.full=*"]).catch(() => {});

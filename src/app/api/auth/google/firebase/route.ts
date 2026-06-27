@@ -88,26 +88,27 @@ export async function GET(req: NextRequest) {
            statusEl.className = "";
            statusEl.textContent = "ล็อกอินสำเร็จ! กำลังนำส่งสิทธิ์ไปยัง Local Agent...";
            try {
-             const agentUrl = localStorage.getItem("dqueue_agent_url") || "http://127.0.0.1:5100";
-             const injectResponse = await fetch(agentUrl.replace(/\/+$/, "") + "/api/accounts/inject-token", {
-               method: "POST",
-               headers: { "Content-Type": "application/json" },
-               body: JSON.stringify({
-                 accountId: data.cloneAccountId,
-                 jwtToken: data.token,
-                 user: data.user
-               })
-             });
-             if (!injectResponse.ok) {
-               throw new Error("HTTP status " + injectResponse.status);
-             }
-             const injectData = await injectResponse.json();
-             if (!injectData.ok) {
-               throw new Error(injectData.error || "เอเจนต์ปฏิเสธการบันทึก");
-             }
-             statusEl.className = "";
-             statusEl.textContent = "✓ นำส่งสิทธิ์เข้าใช้สำเร็จแล้ว! คุณสามารถเปิดแอปโคลนใน BlueStacks ใช้งานได้ทันที";
-             resultEl.textContent = "Token: " + data.token.slice(0, 10) + "...\nUser: " + (data.user.displayName || data.user.email);
+              const agentUrl = localStorage.getItem("dqueue_agent_url") || "http://127.0.0.1:5100";
+              const cleanAgentUrl = agentUrl.endsWith("/") ? agentUrl.slice(0, -1) : agentUrl;
+              const injectResponse = await fetch(cleanAgentUrl + "/api/accounts/inject-token", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  accountId: data.cloneAccountId,
+                  jwtToken: data.token,
+                  user: data.user
+                })
+              });
+              if (!injectResponse.ok) {
+                throw new Error("HTTP status " + injectResponse.status);
+              }
+              const injectData = await injectResponse.json();
+              if (!injectData.ok) {
+                throw new Error(injectData.error || "เอเจนต์ปฏิเสธการบันทึก");
+              }
+              statusEl.className = "";
+              statusEl.textContent = "✓ นำส่งสิทธิ์เข้าใช้สำเร็จแล้ว! คุณสามารถเปิดแอปโคลนใน BlueStacks ใช้งานได้ทันที";
+              resultEl.textContent = "Token: " + data.token.slice(0, 10) + "\\nUser: " + (data.user.displayName || data.user.email);
            } catch (err) {
              statusEl.className = "error";
              statusEl.textContent = "ส่งข้อมูลสิทธิ์เข้าใช้ไปยัง Local Agent ไม่สำเร็จ: " + err.message;

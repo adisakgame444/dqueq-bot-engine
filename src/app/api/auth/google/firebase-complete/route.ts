@@ -100,12 +100,31 @@ export async function POST(req: NextRequest) {
         picture: photoURL,
       });
 
+      let userId: number | undefined = undefined;
+      try {
+        const parts = dqueue.token.split(".");
+        if (parts.length === 3 && parts[1]) {
+          const payload = JSON.parse(Buffer.from(parts[1], "base64").toString("utf8"));
+          userId = payload.user_id || payload.id;
+        }
+      } catch (e) {
+        console.error("Failed to parse JWT token payload:", e);
+      }
+
+      const userObject = {
+        user_id: userId,
+        email: email,
+        displayName: displayName,
+        photoURL: photoURL,
+        token: dqueue.token,
+      };
+
       return NextResponse.json({
         ok: true,
         mode: "clone_login",
         cloneAccountId,
         token: dqueue.token,
-        user: dqueue.raw.validate || dqueue.raw,
+        user: userObject,
       });
     }
 

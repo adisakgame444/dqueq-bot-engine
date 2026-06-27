@@ -87,6 +87,12 @@ export default function AccountsPage() {
   const webOrigin = useMemo(publicOrigin, []);
 
   const shareableAgentUrl = useMemo(() => {
+    if (typeof window !== "undefined") {
+      const hn = window.location.hostname;
+      if (hn === "localhost" || hn === "127.0.0.1") {
+        return agentUrl;
+      }
+    }
     if (agentPublicOrigin) return agentPublicOrigin;
     return agentUrl;
   }, [agentPublicOrigin, agentUrl]);

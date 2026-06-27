@@ -97,7 +97,10 @@ export function getGoogleOAuthStartUrl(
   options: { mode?: "add" | "refresh" | "clone_login"; targetEmail?: string; emailPassword?: string; cloneAccountId?: number } = {}
 ): string {
   const state = createGoogleOAuthState(telegramId, otpCode, options);
-  return `${baseUrl()}/api/auth/google/firebase?state=${encodeURIComponent(state)}`;
+  if (options.mode === "clone_login") {
+    return `${baseUrl()}/api/auth/google/firebase?state=${encodeURIComponent(state)}`;
+  }
+  return getLegacyGoogleOAuthStartUrl(telegramId, otpCode, options);
 }
 
 export function getLegacyGoogleOAuthStartUrl(
