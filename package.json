@@ -68,6 +68,7 @@
       "!remote-android/*.log",
       "!remote-android/*.png",
       "!remote-android/cloudflared*.yml",
+      "!remote-android/accounts.json",
       "src/**/*",
       "prisma/**/*",
       ".next/**/*",
