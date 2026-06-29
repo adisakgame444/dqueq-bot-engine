@@ -193,6 +193,10 @@ function clearPublicTunnelUrl() {
   } catch {
     // Best effort only. The next successful tunnel run will overwrite it.
   }
+  try {
+    const adhocConfig = path.join(externalDataDir, "cloudflared-adhoc-config.yml");
+    if (fs.existsSync(adhocConfig)) fs.unlinkSync(adhocConfig);
+  } catch {}
 }
 
 function extractPublicTunnelUrl(text) {
@@ -370,6 +374,16 @@ function startTunnel() {
   const configPath =
     configuredConfig ||
     path.join(process.env.USERPROFILE || "", ".cloudflared", "config.yml");
+  const adhocConfigPath = path.join(externalDataDir, "cloudflared-adhoc-config.yml");
+  if (!useNamedTunnel) {
+    try {
+      const configYaml = `ingress:\n  - service: ${service}\n`;
+      fs.writeFileSync(adhocConfigPath, configYaml, "utf8");
+    } catch (err) {
+      log("tunnel", `Failed to write adhoc config: ${err.message}`);
+    }
+  }
+
   const cloudflaredPath = bundledCloudflared?.exePath || resolveCloudflaredPath(runtimeEnv);
   const tunnelArgs = useNamedTunnel
     ? [
@@ -380,7 +394,14 @@ function startTunnel() {
         configPath,
         "run",
       ]
-    : ["tunnel", "--no-autoupdate", "--url", service];
+    : [
+        "tunnel",
+        "--no-autoupdate",
+        "--config",
+        adhocConfigPath,
+        "--url",
+        service,
+      ];
 
   setStatus("tunnel", "starting");
   log("tunnel", "กำลังรัน Cloudflare tunnel");
