@@ -118,7 +118,7 @@ async function getDeviceAndroidVersion(deviceIp) {
       execFile(
         ADB_PATH,
         ["-s", deviceIp, "shell", "getprop", "ro.build.version.release"],
-        { timeout: 1500, windowsHide: true },
+        { timeout: 5000, windowsHide: true },
         (err, stdout) => {
           if (err) resolve("");
           else resolve(String(stdout).trim());
@@ -149,7 +149,7 @@ async function autoDetectDevice() {
         execFile(
           ADB_PATH,
           ["connect", target],
-          { timeout: 800, windowsHide: true },
+          { timeout: 3000, windowsHide: true },
           () => resolve()
         );
       });
@@ -162,7 +162,7 @@ async function autoDetectDevice() {
       execFile(
         ADB_PATH,
         ["devices"],
-        { timeout: 2000, windowsHide: true },
+        { timeout: 10000, windowsHide: true },
         (err, stdout, stderr) => {
           if (err) {
             const extendedErr = new Error(`${err.message}${stderr ? "\nStderr: " + stderr.trim() : ""}`);
@@ -219,7 +219,7 @@ async function ensureDeviceConnected() {
       execFile(
         ADB_PATH,
         ["devices"],
-        { timeout: 1500, windowsHide: true },
+        { timeout: 10000, windowsHide: true },
         (err, stdout) => {
           resolve(err ? "" : stdout);
         }
