@@ -163,9 +163,13 @@ async function autoDetectDevice() {
         ADB_PATH,
         ["devices"],
         { timeout: 2000, windowsHide: true },
-        (err, stdout) => {
-          if (err) reject(err);
-          else resolve(stdout);
+        (err, stdout, stderr) => {
+          if (err) {
+            const extendedErr = new Error(`${err.message}${stderr ? "\nStderr: " + stderr.trim() : ""}`);
+            reject(extendedErr);
+          } else {
+            resolve(stdout);
+          }
         }
       );
     });
