@@ -10,6 +10,7 @@ import {
   loginDQueueWithGoogle,
   verifyGoogleOAuthState,
 } from "../../../../../lib/google_oauth";
+import { setEmailClone } from "../../../../../lib/email_clone_map";
 
 export const runtime = "nodejs";
 
@@ -93,6 +94,9 @@ export async function POST(req: NextRequest) {
 
     if (oauthState.mode === "clone_login") {
       const cloneAccountId = oauthState.cloneAccountId;
+      if (email && cloneAccountId) {
+        setEmailClone(email, cloneAccountId);
+      }
       const dqueue = await loginDQueueWithGoogle({
         sub: uid,
         name: displayName,

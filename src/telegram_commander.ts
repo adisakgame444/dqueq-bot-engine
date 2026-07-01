@@ -50,7 +50,7 @@ const MAIN_MENU_KEYBOARD = Markup.keyboard([
   ["📋 รายการบัญชี API ทั้งหมด", "🔁 สลับบัญชี API"],
   ["🔍 ค้นหาร้านอาหาร", "🤖 ออโต้จอง API"],
   ["❌ API ยกเลิกคิว", "🗑️ ลบบัญชี API"],
-]).resize();
+] as any, { is_persistent: true } as any).resize();
 
 const authMiddleware = (ctx: any, next: () => Promise<void>) => {
   if (adminId && ctx.from?.id.toString() !== adminId) {
@@ -597,7 +597,7 @@ bot.hears("🔍 ค้นหาร้านอาหาร", authMiddleware, asy
     `บัญชี: ${getActiveApiAccountLabel()}\n\n` +
     `รหัสรับ OTP: ${maskSecret(getActiveApiAccount()?.otpCode)}\n\n` +
     "พิมพ์ชื่อร้านอย่างเดียว เช่น:\nhotpot\nHOTPOTMAN\n\nระบบจะค้นหาร้านจาก QueQ API แล้วแสดงเป็นปุ่มให้เลือกจอง",
-    Markup.removeKeyboard()
+    MAIN_MENU_KEYBOARD
   );
 });
 

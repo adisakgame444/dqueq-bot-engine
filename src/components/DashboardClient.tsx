@@ -16,6 +16,7 @@ type DashboardAccount = {
 type DashboardData = {
   accounts: DashboardAccount[];
   bookings: ApiBookingRecord[];
+  emailCloneMap: Record<string, number>;
   updatedAt: string;
 };
 
@@ -45,6 +46,12 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
   const [syncState, setSyncState] = useState<"live" | "syncing" | "error">("live");
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [agentUrl, setAgentUrl] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("dqueue_agent_url") || "http://127.0.0.1:5100";
+    }
+    return "http://127.0.0.1:5100";
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -105,9 +112,10 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
   function buildAccountCopyText(booking: ApiBookingRecord): string {
     return [
       `อีเมล: ${booking.accountEmail}`,
-      `รหัสผ่านเมล: ${booking.emailPassword ?? "-"}`,
+      `รหัสผ่าน: ${booking.emailPassword ?? "-"}`,
       `คิว: ${booking.queueCode}`,
       `รออีก: ${booking.waitingAhead ?? "-"} คิว`,
+      `จำนวนคน: ${booking.people ?? "-"} คน`,
     ].join("\n");
   }
 
@@ -181,6 +189,11 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
             <div className="grid gap-4 lg:grid-cols-2">
               {filteredBookings.map((booking) => {
                 const ready = isReadyQueue(booking.waitingAhead);
+                const cloneId = data.emailCloneMap?.[booking.accountEmail.toLowerCase()] || 1;
+                const webOrigin = typeof window !== "undefined" ? window.location.origin : "";
+                const shareableAgentUrl = agentUrl.startsWith("http://127.0.0.1") ? agentUrl.replace("127.0.0.1", "localhost") : agentUrl;
+                const publicLink = `${webOrigin}/app-ios/${cloneId}?agent=${encodeURIComponent(shareableAgentUrl)}`;
+
                 return (
                 <article key={booking.id} className={`relative overflow-hidden rounded-[18px] border bg-white p-4 shadow-lg shadow-slate-300/35 ${
                   ready ? "border-[#f1b7b2]" : "border-[#b7ddd5]"
@@ -232,6 +245,12 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
                         บัญชี: <span className="font-mono text-[#0570a6]">{booking.accountEmail}</span>
                       </p>
                       {copyButton("Copy", `account-${booking.id}`, buildAccountCopyText(booking))}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <p className="min-w-0 flex-1 truncate">
+                        ลิงก์ส่งต่อ (เปิดแอป): <span className="font-mono text-[#0e9384]">{publicLink}</span>
+                      </p>
+                      {copyButton("Copy Link", `link-${booking.id}`, publicLink)}
                     </div>
                     <div className="flex items-center gap-2">
                       <p className="min-w-0 flex-1 truncate">

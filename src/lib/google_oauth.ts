@@ -97,10 +97,8 @@ export function getGoogleOAuthStartUrl(
   options: { mode?: "add" | "refresh" | "clone_login"; targetEmail?: string; emailPassword?: string; cloneAccountId?: number } = {}
 ): string {
   const state = createGoogleOAuthState(telegramId, otpCode, options);
-  if (options.mode === "clone_login") {
-    return `${baseUrl()}/api/auth/google/firebase?state=${encodeURIComponent(state)}`;
-  }
-  return getLegacyGoogleOAuthStartUrl(telegramId, otpCode, options);
+  // ใช้หน้าสีเขียว (Firebase Custom Login) สำหรับทุกโหมดเพื่อให้เด้งเปิดจอคอมพิวเตอร์ผ่าน Localhost
+  return `${baseUrl()}/api/auth/google/firebase?state=${encodeURIComponent(state)}`;
 }
 
 export function getLegacyGoogleOAuthStartUrl(
