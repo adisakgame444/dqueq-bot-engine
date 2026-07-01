@@ -57,8 +57,10 @@ function parseDotEnv(content) {
 
 function loadRuntimeEnv() {
   const envFile = path.join(externalDataDir, ".env");
+  const bundledEnvFile = path.join(rootDir, ".env");
   try {
-    const values = parseDotEnv(fs.readFileSync(envFile, "utf8"));
+    const fileToRead = fs.existsSync(envFile) ? envFile : bundledEnvFile;
+    const values = parseDotEnv(fs.readFileSync(fileToRead, "utf8"));
     runtimeEnvCache = values;
     send("config-status", { mode: "plain", ready: true });
     return values;
