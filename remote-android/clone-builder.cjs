@@ -148,6 +148,13 @@ async function buildClone({ account, adbPath, device }) {
         }
       })();
     </script>
+    <style>
+      /* ปิดการใช้ filter/เงา บนไอคอนและองค์กรจัดหมวดหมู่เพื่อแก้บั๊กการเรนเดอร์ในจอเสมือน */
+      ion-icon, img, svg, [class*="icon"], [class*="category"] {
+        filter: none !important;
+        box-shadow: none !important;
+      }
+    </style>
   `;
 
   const modifiedIndexHtml = originalIndexHtml.replace(

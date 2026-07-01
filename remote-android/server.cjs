@@ -379,7 +379,22 @@ function integer(value, min, max, name) {
 
 function readPublicTunnelOrigin() {
   try {
-    const payload = JSON.parse(fs.readFileSync(PUBLIC_TUNNEL_FILE, "utf8"));
+    let fileToRead = PUBLIC_TUNNEL_FILE;
+    if (!process.env.DQUEUE_PUBLIC_TUNNEL_FILE) {
+      const releaseFile = path.join(DATA_DIR, "release", "public-tunnel.json");
+      if (fs.existsSync(releaseFile)) {
+        try {
+          const mainTime = fs.existsSync(PUBLIC_TUNNEL_FILE)
+            ? fs.statSync(PUBLIC_TUNNEL_FILE).mtimeMs
+            : 0;
+          const releaseTime = fs.statSync(releaseFile).mtimeMs;
+          if (releaseTime > mainTime) {
+            fileToRead = releaseFile;
+          }
+        } catch (e) {}
+      }
+    }
+    const payload = JSON.parse(fs.readFileSync(fileToRead, "utf8"));
     const url = String(payload.url || "").trim().replace(/\/+$/, "");
     if (/^https:\/\/[a-z0-9-]+\.trycloudflare\.com$/i.test(url)) return url;
     if (/^https:\/\/[a-z0-9.-]+$/i.test(url)) return url;
