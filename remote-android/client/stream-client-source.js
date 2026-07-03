@@ -247,6 +247,31 @@ keyboardCapture.addEventListener("keydown", (event) => {
     });
 });
 
+let lastFramesRendered = 0;
+let fpsInterval = null;
+
+function startFpsCounter() {
+  if (fpsInterval) clearInterval(fpsInterval);
+  lastFramesRendered = decoder ? decoder.framesRendered : 0;
+  fpsInterval = setInterval(() => {
+    if (streamActive && decoder) {
+      const currentFrames = decoder.framesRendered;
+      const fps = currentFrames - lastFramesRendered;
+      lastFramesRendered = currentFrames;
+      if (streamMode) {
+        streamMode.textContent = `scrcpy H.264 live (${fps} FPS)`;
+      }
+    }
+  }, 1000);
+}
+
+function stopFpsCounter() {
+  if (fpsInterval) {
+    clearInterval(fpsInterval);
+    fpsInterval = null;
+  }
+}
+
 function showPngFallback(reason) {
   streamActive = false;
   fallbackReason = reason || "";
@@ -261,6 +286,7 @@ function showPngFallback(reason) {
   streamMode.textContent = reason ? `Waiting: ${reason}` : "Waiting";
   if (!isIosView && !isWaiting) startPngFallback();
   else stopPngFallback();
+  stopFpsCounter();
   updateDebug();
 }
 
@@ -272,6 +298,7 @@ function showLiveStream() {
   screen.hidden = true;
   loading.style.display = "none";
   streamMode.textContent = "scrcpy H.264 live";
+  startFpsCounter();
   updateDebug();
 }
 
@@ -318,6 +345,7 @@ async function disposeDecoder() {
   decoderWriter = undefined;
   decoder?.dispose();
   decoder = undefined;
+  stopFpsCounter();
 }
 
 function connectScrcpy() {

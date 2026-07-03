@@ -40,21 +40,10 @@ const ALLOWED_ORIGINS = (process.env.REMOTE_ANDROID_ALLOWED_ORIGINS || "*")
   .split(",")
   .map((origin) => origin.trim())
   .filter(Boolean);
-const CLIENT_FILE = path.join(__dirname, "client", "index-v2.html");
 const APP_CLIENT_FILE = path.join(__dirname, "client", "app-only.html");
 const APP_IOS_CLIENT_FILE = path.join(__dirname, "client", "app-ios.html");
-const ACCOUNTS_CLIENT_FILE = path.join(
-  __dirname,
-  "client",
-  "accounts.html"
-);
 const CLIENT_SCRIPT_FILE = path.join(__dirname, "client", "stream-client.js");
 const SW_FILE = path.join(__dirname, "client", "sw.js");
-const ACCOUNTS_SCRIPT_FILE = path.join(
-  __dirname,
-  "client",
-  "accounts.js"
-);
 const SCRCPY_SERVER_FILE = path.join(
   __dirname,
   "scrcpy-server-v3.3.3"
@@ -568,13 +557,13 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === "GET" && url.pathname === "/accounts") {
-      const html = fs.readFileSync(ACCOUNTS_CLIENT_FILE);
-      res.writeHead(200, {
-        "Content-Type": "text/html; charset=utf-8",
-        "Content-Length": html.length,
-        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+      const host = req.headers.host || "";
+      const isPublicDomain = host.includes("bothero.online");
+      const nextjsBase = isPublicDomain ? "https://www.bothero.online" : "http://localhost:5000";
+      res.writeHead(302, {
+        "Location": `${nextjsBase}/manager`
       });
-      res.end(html);
+      res.end();
       return;
     }
 
@@ -582,35 +571,14 @@ const server = http.createServer(async (req, res) => {
       req.method === "GET" &&
       (url.pathname === "/" || accountMatch)
     ) {
-      if (accountMatch) {
-        const account = accountStore.getAccount(Number(accountMatch[1]));
-        if (!account || !account.enabled) {
-          sendJson(res, 404, {
-            ok: false,
-            error: "Account was not found or is disabled",
-          });
-          return;
-        }
-      }
-      const accountLinks = accountStore
-        .listAccounts()
-        .filter((account) => account.enabled)
-        .map(
-          (account) =>
-            `<a href="/account/${account.id}">${account.name}</a>`
-        )
-        .join("");
-      const html = Buffer.from(
-        fs
-          .readFileSync(CLIENT_FILE, "utf8")
-          .replace("<!--ACCOUNT_LINKS-->", accountLinks)
-      );
-      res.writeHead(200, {
-        "Content-Type": "text/html; charset=utf-8",
-        "Content-Length": html.length,
-        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+      const host = req.headers.host || "";
+      const isPublicDomain = host.includes("bothero.online");
+      const nextjsBase = isPublicDomain ? "https://www.bothero.online" : "http://localhost:5000";
+      const accountId = accountMatch ? Number(accountMatch[1]) : 1;
+      res.writeHead(302, {
+        "Location": `${nextjsBase}/manager/control/${accountId}`
       });
-      res.end(html);
+      res.end();
       return;
     }
 

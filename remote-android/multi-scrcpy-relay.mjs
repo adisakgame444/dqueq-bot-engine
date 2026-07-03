@@ -221,9 +221,9 @@ function createSession({
     audio: false,
     control: true,
     videoCodec: "h264",
-    videoBitRate: 16_000_000,
+    videoBitRate: 2_000_000,
     maxFps: 60,
-    maxSize: 1920,
+    maxSize: 800,
     sendFrameMeta: true,
     logLevel: "warn",
     tunnelForward: true,
@@ -453,6 +453,10 @@ function createSession({
       await controller.startApp(appPackage);
       return true;
     }
+    if (payload.type === "close") {
+      await runAdb(adbPath, device, ["shell", "am", "force-stop", appPackage]);
+      return true;
+    }
 
     const toVideoX = (value) =>
       Math.round((Number(value) / DISPLAY_WIDTH) * videoWidth);
@@ -577,6 +581,12 @@ export function attachMultiScrcpyRelay({
       appPackage: account.packageName,
     });
     sessions.set(id, session);
+
+    // Pre-start the session in the background so it is instantly ready when the user opens the page!
+    session.start().catch((err) => {
+      console.error(`[scrcpy-prestart:${id}] Failed to pre-start session:`, err);
+    });
+
     return session;
   }
 
