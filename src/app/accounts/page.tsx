@@ -297,7 +297,12 @@ export default function AccountsPage() {
                   </a>
                   {account.id !== 1 ? (
                     <a
-                      href={`/api/auth/google/start-clone?cloneAccountId=${account.id}`}
+                      href={
+                        typeof window !== "undefined" &&
+                        (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1")
+                          ? `/api/auth/google/start-clone?cloneAccountId=${account.id}`
+                          : `http://localhost:5000/api/auth/google/start-clone?cloneAccountId=${account.id}`
+                      }
                       target="_blank"
                       rel="noreferrer"
                       style={{ borderColor: "#4ade80", color: "#4ade80", background: "rgba(74, 222, 128, 0.05)" }}
