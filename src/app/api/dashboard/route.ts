@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
 
   let localAccounts: any[] = [];
   let localError = false;
+  let mergedEmailCloneMap = { ...emailCloneMap };
 
   try {
     const agentPort = process.env.REMOTE_ANDROID_PORT || "5100";
@@ -47,6 +48,9 @@ export async function GET(req: NextRequest) {
     if (agentRes.ok) {
       const agentData = await agentRes.json();
       localAccounts = agentData.accounts || [];
+      if (agentData.emailCloneMap) {
+        mergedEmailCloneMap = { ...mergedEmailCloneMap, ...agentData.emailCloneMap };
+      }
     } else {
       localError = true;
     }
@@ -57,7 +61,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     accounts,
     bookings,
-    emailCloneMap,
+    emailCloneMap: mergedEmailCloneMap,
     localAccounts,
     localError,
     updatedAt: new Date().toISOString(),

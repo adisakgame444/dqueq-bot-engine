@@ -30,4 +30,15 @@ export function setEmailClone(email: string, cloneAccountId: number): void {
   const map = getEmailCloneMap();
   map[email.trim().toLowerCase()] = cloneAccountId;
   saveEmailCloneMap(map);
+
+  // Also save to local agent so it persists on the user's machine
+  try {
+    const agentPort = process.env.REMOTE_ANDROID_PORT || "5100";
+    const agentHost = process.env.REMOTE_ANDROID_HOST || "127.0.0.1";
+    fetch(`http://${agentHost}:${agentPort}/api/email-clone-map`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: email.trim().toLowerCase(), cloneAccountId }),
+    }).catch(() => {});
+  } catch (e) {}
 }

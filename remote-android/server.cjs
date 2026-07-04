@@ -334,7 +334,6 @@ function corsHeaders() {
       : ALLOWED_ORIGINS.join(", "),
     "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type",
-    "Access-Control-Allow-Private-Network": "true",
     "Access-Control-Max-Age": "86400",
   };
 }
@@ -685,15 +684,46 @@ const server = http.createServer(async (req, res) => {
 
     if (req.method === "GET" && url.pathname === "/api/accounts") {
       const relay = await scrcpyRelayPromise;
+      let emailCloneMap = {};
+      try {
+        const mapPath = path.join(DATA_DIR, "email_clone_map.json");
+        if (fs.existsSync(mapPath)) {
+          emailCloneMap = JSON.parse(fs.readFileSync(mapPath, "utf8"));
+        }
+      } catch (e) {}
       sendJson(res, 200, {
         ok: true,
         busy: Boolean(accountOperation),
         publicOrigin: readPublicTunnelOrigin(),
         accounts: await accountDetails(relay),
+        emailCloneMap,
       });
       return;
     }
 
+    if (req.method === "POST" && url.pathname === "/api/email-clone-map") {
+      try {
+        const body = await readJson(req);
+        const { email, cloneAccountId } = body;
+        if (email && typeof cloneAccountId === "number") {
+          const mapPath = path.join(DATA_DIR, "email_clone_map.json");
+          let map = {};
+          try {
+            if (fs.existsSync(mapPath)) {
+              map = JSON.parse(fs.readFileSync(mapPath, "utf8"));
+            }
+          } catch (e) {}
+          map[email.trim().toLowerCase()] = cloneAccountId;
+          fs.writeFileSync(mapPath, JSON.stringify(map, null, 2), "utf8");
+          sendJson(res, 200, { ok: true });
+        } else {
+          sendJson(res, 400, { ok: false, error: "Invalid parameters" });
+        }
+      } catch (err) {
+        sendJson(res, 500, { ok: false, error: err.message });
+      }
+      return;
+    }
     if (req.method === "POST" && url.pathname === "/api/accounts") {
       const relay = await scrcpyRelayPromise;
       const account = accountStore.nextAccount();
