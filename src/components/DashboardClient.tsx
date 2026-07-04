@@ -17,6 +17,8 @@ type DashboardData = {
   accounts: DashboardAccount[];
   bookings: ApiBookingRecord[];
   emailCloneMap: Record<string, number>;
+  localAccounts?: any[];
+  localError?: boolean;
   updatedAt: string;
 };
 
@@ -61,12 +63,17 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
   const [localError, setLocalError] = useState(false);
 
   async function localAgentRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
-    const response = await fetch(`${agentUrl.replace(/\/+$/, "")}${path}`, {
-      ...options,
+    const response = await fetch("/api/manager/agent-proxy", {
+      method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(options.headers || {}),
       },
+      body: JSON.stringify({
+        path,
+        method: options.method || "GET",
+        body: options.body ? JSON.parse(options.body as string) : undefined,
+        agentUrl,
+      }),
       cache: "no-store",
     });
     const resData = await response.json();
@@ -85,7 +92,7 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
         body: JSON.stringify({ enabled: !currentEnabled }),
       });
       setNotice(`สลับสถานะบัญชี ${accountId} สำเร็จ!`);
-      // Update localAccounts state immediately
+      // Update localAccounts state immediately via proxy request
       const localData = await localAgentRequest<{ accounts: any[] }>("/api/accounts");
       setLocalAccounts(localData.accounts || []);
     } catch (e: any) {
@@ -106,7 +113,7 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
         body: JSON.stringify({}),
       });
       setNotice(`บัญชีใหม่ ${res.account.name} สร้างและติดตั้งพร้อมใช้งานแล้ว!`);
-      // Update localAccounts state immediately
+      // Update localAccounts state immediately via proxy request
       const localData = await localAgentRequest<{ accounts: any[] }>("/api/accounts");
       setLocalAccounts(localData.accounts || []);
     } catch (e: any) {
@@ -124,11 +131,13 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
     async function sync() {
       try {
         setSyncState("syncing");
-        const res = await fetch("/api/dashboard", { cache: "no-store" });
+        const res = await fetch(`/api/dashboard?agent=${encodeURIComponent(agentUrl)}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const nextData = await res.json() as DashboardData;
         if (!cancelled) {
           setData(nextData);
+          setLocalAccounts(nextData.localAccounts || []);
+          setLocalError(!!nextData.localError);
           setSyncState("live");
         }
       } catch (error) {
@@ -137,27 +146,10 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
       }
     }
 
-    async function syncLocal() {
-      try {
-        const res = await fetch(`${agentUrl.replace(/\/+$/, "")}/api/accounts`, { cache: "no-store" });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const localData = await res.json();
-        if (!cancelled) {
-          setLocalAccounts(localData.accounts || []);
-          setLocalError(false);
-        }
-      } catch (error) {
-        console.error("Local agent sync failed:", error);
-        if (!cancelled) setLocalError(true);
-      }
-    }
-
     sync();
-    syncLocal();
 
     const timer = setInterval(() => {
       sync();
-      syncLocal();
     }, 3000);
 
     return () => {
@@ -279,11 +271,27 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
                 + เพิ่มบัญชี
               </button>
             </div>
-            {localError && (
-              <span className="text-xs font-bold text-rose-600 animate-pulse">
-                ⚠️ เชื่อมต่อกับตัวควบคุม Local Agent ในเครื่องไม่ได้ (กรุณาเช็คตัวรัน Terminal)
-              </span>
-            )}
+            <div className="flex flex-col items-end gap-1 sm:items-end">
+              {localError && (
+                <span className="text-[11px] font-bold text-rose-600 animate-pulse">
+                  ⚠️ เชื่อมต่อกับตัวควบคุม Local Agent ในเครื่องไม่ได้ (กรุณาเช็คตัวรัน Terminal)
+                </span>
+              )}
+              <div className="flex items-center gap-1.5 text-xs">
+                <span className="text-slate-500 font-bold">ที่อยู่เชื่อมต่อ Agent:</span>
+                <input
+                  type="text"
+                  value={agentUrl}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setAgentUrl(val);
+                    localStorage.setItem("dqueue_agent_url", val);
+                  }}
+                  className="rounded border border-[#cbd5e1] bg-white px-2 py-0.5 text-xs text-slate-800 focus:border-[#ff7900] outline-none w-56 font-mono font-medium shadow-inner"
+                  placeholder="http://127.0.0.1:5100"
+                />
+              </div>
+            </div>
           </div>
 
           {localAccounts.length === 0 ? (
