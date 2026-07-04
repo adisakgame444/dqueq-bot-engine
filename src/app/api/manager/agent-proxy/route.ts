@@ -20,7 +20,17 @@ export async function POST(req: NextRequest) {
     const agentHost = process.env.REMOTE_ANDROID_HOST || "127.0.0.1";
     
     // Use the custom agent URL if provided by the client's localStorage configuration, fallback to local loopback
-    const base = agentUrl ? agentUrl.replace(/\/+$/, "") : `http://${agentHost}:${agentPort}`;
+    let base = agentUrl ? agentUrl.replace(/\/+$/, "") : `http://${agentHost}:${agentPort}`;
+    
+    // Check if the current Next.js server handling the request is the remote production server (bothero.online)
+    const host = req.headers.get("host") || "";
+    const isRemoteProduction = host.includes("bothero.online") && !host.includes("localhost") && !host.includes("127.0.0.1");
+
+    // If running on production server and attempting to resolve local agent, auto-redirect to the secure Cloudflare tunnel domain
+    if (isRemoteProduction && (base.includes("127.0.0.1") || base.includes("localhost"))) {
+      base = "https://remote.bothero.online";
+    }
+
     const targetUrl = `${base}${path}`;
 
     // Build RequestInit properties dynamically to support strict exactOptionalPropertyTypes compilation settings

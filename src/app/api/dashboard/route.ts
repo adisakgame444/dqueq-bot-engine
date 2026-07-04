@@ -29,7 +29,17 @@ export async function GET(req: NextRequest) {
     const agentHost = process.env.REMOTE_ANDROID_HOST || "127.0.0.1";
     
     // Parse target base agent url from query parameter or fallback
-    const base = queryAgent ? queryAgent.replace(/\/+$/, "") : `http://${agentHost}:${agentPort}`;
+    let base = queryAgent ? queryAgent.replace(/\/+$/, "") : `http://${agentHost}:${agentPort}`;
+    
+    // Check if the current Next.js server handling the request is the remote production server (bothero.online)
+    const host = req.headers.get("host") || "";
+    const isRemoteProduction = host.includes("bothero.online") && !host.includes("localhost") && !host.includes("127.0.0.1");
+    
+    // If running on production server and attempting to resolve local agent, auto-redirect to the secure Cloudflare tunnel domain
+    if (isRemoteProduction && (base.includes("127.0.0.1") || base.includes("localhost"))) {
+      base = "https://remote.bothero.online";
+    }
+
     const agentRes = await fetch(`${base}/api/accounts`, {
       cache: "no-store",
       signal: AbortSignal.timeout(2500),
