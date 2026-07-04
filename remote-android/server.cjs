@@ -443,6 +443,54 @@ async function isPackageInstalled(packageName) {
     .catch(() => false);
 }
 
+async function syncInstalledAccounts(relay) {
+  try {
+    const output = await adb([
+      "shell",
+      "pm",
+      "list",
+      "packages",
+      "me.deltaqueue.dqueue",
+    ]);
+    const installedAccounts = String(output)
+      .split(/\r?\n/)
+      .map((line) =>
+        line
+          .trim()
+          .match(/^package:(me\.deltaqueue\.dqueue(?:\.account(\d+))?)$/)
+      )
+      .filter(Boolean)
+      .map((match) => ({
+        id: match[2] ? Number(match[2]) : 1,
+        name: `Account ${match[2] || 1}`,
+        packageName: match[1],
+        enabled: true,
+        protected: !match[2],
+      }))
+      .filter((account) => account.id === 1 || account.id >= 2)
+      .sort((left, right) => left.id - right.id);
+
+    const storedAccounts = accountStore.listAccounts();
+    for (const account of installedAccounts) {
+      const alreadyStored = storedAccounts.some(
+        (stored) =>
+          stored.id === account.id || stored.packageName === account.packageName
+      );
+      if (alreadyStored) continue;
+      const stored = accountStore.addAccount(account);
+      if (relay && stored.enabled) relay.ensureSession(stored);
+      storedAccounts.push(stored);
+      console.log(
+        `[Accounts] Discovered installed app and added ${stored.name} (${stored.packageName}).`
+      );
+    }
+  } catch (error) {
+    console.warn(
+      `[Accounts] Could not scan installed DQueue apps: ${error.message}`
+    );
+  }
+}
+
 async function autoInstallAccount1IfMissing() {
   try {
     const isInstalled = await isPackageInstalled("me.deltaqueue.dqueue");
@@ -475,6 +523,7 @@ async function autoInstallAccount1IfMissing() {
 }
 
 async function accountDetails(relay) {
+  await syncInstalledAccounts(relay);
   const accounts = accountStore.listAccounts();
   const publicOrigin = readPublicTunnelOrigin();
   return Promise.all(

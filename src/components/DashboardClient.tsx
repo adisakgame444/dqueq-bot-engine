@@ -65,31 +65,6 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
   const [localError, setLocalError] = useState(false);
 
   async function localAgentRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
-    const isAgentLocal = agentUrl.includes("127.0.0.1") || agentUrl.includes("localhost");
-    const isPageOnRemoteHttps = typeof window !== "undefined" && 
-      window.location.protocol === "https:" && 
-      !window.location.hostname.includes("localhost") && 
-      !window.location.hostname.includes("127.0.0.1");
-
-    if (isAgentLocal && isPageOnRemoteHttps) {
-      // Direct client-side CORS request to local agent loopback
-      const url = `${agentUrl.replace(/\/+$/, "")}${path}`;
-      const fetchOpts: RequestInit = {
-        method: options.method || "GET",
-        headers: options.headers || { "Content-Type": "application/json" },
-        cache: "no-store",
-      };
-      if (options.body) {
-        fetchOpts.body = options.body;
-      }
-      const response = await fetch(url, fetchOpts);
-      const resData = await response.json();
-      if (!response.ok || resData.ok === false) {
-        throw new Error(resData.error || `HTTP ${response.status}`);
-      }
-      return resData as T;
-    }
-
     const response = await fetch("/api/manager/agent-proxy", {
       method: "POST",
       headers: {
@@ -157,70 +132,15 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
 
     async function sync() {
       try {
-        // Auto-discover local agent tunnel URL if available
-        try {
-          const discoveryRes = await fetch("http://127.0.0.1:5100/api/accounts", {
-            cache: "no-store",
-            signal: AbortSignal.timeout(1500),
-          });
-          if (discoveryRes.ok) {
-            const discoveryData = await discoveryRes.json();
-            const discoveredUrl = (discoveryData?.publicOrigin || "").trim();
-            if (discoveredUrl && discoveredUrl !== agentUrl) {
-              if (!cancelled) {
-                setAgentUrl(discoveredUrl);
-                localStorage.setItem("dqueue_agent_url", discoveredUrl);
-                return;
-              }
-            }
-          }
-        } catch (err) {
-          // Ignore discovery failures (local agent not running)
-        }
-
         setSyncState("syncing");
-        const isAgentLocal = agentUrl.includes("127.0.0.1") || agentUrl.includes("localhost");
-        const isPageOnRemoteHttps = typeof window !== "undefined" && 
-          window.location.protocol === "https:" && 
-          !window.location.hostname.includes("localhost") && 
-          !window.location.hostname.includes("127.0.0.1");
-
-        let dashboardUrl = "/api/dashboard";
-        if (!isAgentLocal || !isPageOnRemoteHttps) {
-          dashboardUrl += `?agent=${encodeURIComponent(agentUrl)}`;
-        }
-
-        const res = await fetch(dashboardUrl, { cache: "no-store" });
+        const res = await fetch(`/api/dashboard?agent=${encodeURIComponent(agentUrl)}`, { cache: "no-store" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const nextData = await res.json() as DashboardData;
-
         if (!cancelled) {
           setData(nextData);
+          setLocalAccounts(nextData.localAccounts || []);
+          setLocalError(!!nextData.localError);
           setSyncState("live");
-
-          if (isAgentLocal && isPageOnRemoteHttps) {
-            // Fetch local agent accounts list directly client-side
-            try {
-              const localRes = await fetch(`${agentUrl.replace(/\/+$/, "")}/api/accounts`, {
-                cache: "no-store",
-                signal: AbortSignal.timeout(2000),
-              });
-              if (localRes.ok) {
-                const localData = await localRes.json();
-                setLocalAccounts(localData.accounts || []);
-                setLocalError(false);
-              } else {
-                setLocalError(true);
-                setLocalAccounts([]);
-              }
-            } catch (err) {
-              setLocalError(true);
-              setLocalAccounts([]);
-            }
-          } else {
-            setLocalAccounts(nextData.localAccounts || []);
-            setLocalError(!!nextData.localError);
-          }
         }
       } catch (error) {
         console.error("Dashboard sync failed:", error);
