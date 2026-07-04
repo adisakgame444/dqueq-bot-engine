@@ -52,7 +52,9 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("dqueue_agent_url") || "http://127.0.0.1:5100";
+      const isProd = window.location.hostname.includes("bothero.online");
+      const defaultUrl = isProd ? "https://remote.bothero.online" : "http://127.0.0.1:5100";
+      const saved = localStorage.getItem("dqueue_agent_url") || defaultUrl;
       setAgentUrl(saved);
     }
   }, []);
