@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const STREAM_CLIENT_VERSION = "117";
+const STREAM_CLIENT_VERSION = "118";
 
 export function getAgentOrigin() {
   return (
