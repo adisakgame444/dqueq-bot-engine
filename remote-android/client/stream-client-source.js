@@ -7,7 +7,6 @@ const DEVICE_WIDTH = 900;
 const DEVICE_HEIGHT = 1920;
 const isAppView = document.body.dataset.view === "app" || document.body.dataset.view === "app-ios";
 const isIosView = document.body.dataset.view === "app-ios";
-const SESSION_VIEW = isIosView ? "ios" : "android";
 const IOS_TOP_CROP = 0;
 const Y_OFFSET = isIosView ? IOS_TOP_CROP : 0;
 const DEVICE_VISIBLE_HEIGHT = isIosView
@@ -40,8 +39,6 @@ const configuredAgentOrigin =
 const AGENT_HTTP_ORIGIN = String(configuredAgentOrigin).replace(/\/+$/, "");
 const AGENT_WS_ORIGIN = AGENT_HTTP_ORIGIN.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
 const API_BASE = `${AGENT_HTTP_ORIGIN}/api/account/${SESSION_ID}`;
-const sessionApiUrl = (path) =>
-  `${API_BASE}${path}?view=${encodeURIComponent(SESSION_VIEW)}`;
 const screen = document.getElementById("screen");
 const canvas = document.getElementById("stream");
 const device = document.getElementById("device");
@@ -95,7 +92,7 @@ function updateDebug(extra = {}) {
 }
 
 async function apiInput(payload) {
-  const response = await fetch(sessionApiUrl("/input"), {
+  const response = await fetch(`${API_BASE}/input`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
@@ -357,9 +354,7 @@ function connectScrcpy() {
     return;
   }
 
-  socket = new WebSocket(
-    `${AGENT_WS_ORIGIN}/scrcpy/${SESSION_ID}?view=${encodeURIComponent(SESSION_VIEW)}`
-  );
+  socket = new WebSocket(`${AGENT_WS_ORIGIN}/scrcpy/${SESSION_ID}`);
   socket.binaryType = "arraybuffer";
 
   socket.addEventListener("message", async (event) => {
@@ -437,7 +432,7 @@ function connectScrcpy() {
 async function checkStatus() {
   if (!status || !statusText) return;
   try {
-    const response = await fetch(sessionApiUrl("/status"), { cache: "no-store" });
+    const response = await fetch(`${API_BASE}/status`, { cache: "no-store" });
     const data = await response.json();
     status.classList.toggle("online", Boolean(data.ok));
     statusText.textContent = data.ok ? "Device online" : data.state || "Offline";

@@ -22,10 +22,7 @@ import { WebSocket, WebSocketServer } from "ws";
 const MAX_BUFFERED_BYTES = 16 * 1024 * 1024;
 const DISPLAY_WIDTH = 900;
 const DISPLAY_HEIGHT = 1920;
-const DISPLAY_DENSITIES = {
-  android: 400,
-  ios: 360,
-};
+const DISPLAY_DENSITY = 360;
 let adbConnectPromise = null;
 
 function runAdbOnce(adbPath, device, args, options = {}) {
@@ -197,18 +194,15 @@ async function killScrcpyProcesses(adbPath, device, targetScid) {
 
 function createSession({
   id,
-  view,
   adbPath,
   device,
   serverPath,
   appPackage,
 }) {
   const sockets = new Set();
-  const transportId = id * 2 + (view === "ios" ? 1 : 0);
-  const density = DISPLAY_DENSITIES[view];
-  const scid = transportId.toString(16);
-  const localPort = 27200 + transportId;
-  const deviceServerPath = `/data/local/tmp/dqueq-scrcpy-${transportId}.jar`;
+  const scid = id.toString(16);
+  const localPort = 27200 + id;
+  const deviceServerPath = `/data/local/tmp/dqueq-scrcpy-${id}.jar`;
   const socketName = `localabstract:scrcpy_${scid.padStart(8, "0")}`;
   let state = "idle";
   let detail = "Waiting for browser";
@@ -234,7 +228,7 @@ function createSession({
     logLevel: "warn",
     tunnelForward: true,
     scid,
-    newDisplay: new ScrcpyNewDisplay(DISPLAY_WIDTH, DISPLAY_HEIGHT, density),
+    newDisplay: new ScrcpyNewDisplay(DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_DENSITY),
     vdSystemDecorations: false,
     vdDestroyContent: true,
   });
@@ -301,7 +295,7 @@ function createSession({
 
     startPromise = (async () => {
       state = "starting";
-      detail = `Starting ${view} virtual display ${id} at ${density} DPI`;
+      detail = `Starting virtual display ${id}`;
       broadcastJson({ type: "state", state, detail });
 
       // Kill any running scrcpy server instances on the Android device to ensure a clean restart
@@ -341,11 +335,11 @@ function createSession({
       process.stderr.setEncoding("utf8");
       process.stdout.on("data", (text) => {
         const line = String(text).trim();
-        if (line) console.log(`[scrcpy:${id}:${view}] ${line}`);
+        if (line) console.log(`[scrcpy:${id}] ${line}`);
       });
       process.stderr.on("data", (text) => {
         const line = String(text).trim();
-        if (line) console.error(`[scrcpy:${id}:${view}] ${line}`);
+        if (line) console.error(`[scrcpy:${id}] ${line}`);
       });
       process.once("exit", (code) => {
         if (state === "streaming" || state === "starting") {
@@ -420,7 +414,7 @@ function createSession({
         state = "error";
         detail = String(error?.message || error);
         broadcastJson({ type: "state", state, detail });
-        console.error(`[scrcpy:${id}:${view}]`, error);
+        console.error(`[scrcpy:${id}]`, error);
         await cleanup();
         throw error;
       })
@@ -536,8 +530,6 @@ function createSession({
 
   return {
     id,
-    view,
-    density,
     appPackage,
     addSocket,
     start,
@@ -547,8 +539,6 @@ function createSession({
         detail,
         clients: sockets.size,
         session: id,
-        view,
-        density,
         appPackage,
       };
     },
@@ -577,48 +567,35 @@ export function attachMultiScrcpyRelay({
   accounts = [],
 }) {
   const sessions = new Map();
-  const accountById = new Map();
 
-  const normalizeView = (view) => (view === "ios" ? "ios" : "android");
-  const sessionKey = (id, view) => `${Number(id)}:${normalizeView(view)}`;
-
-  function ensureSession(account, requestedView = "android") {
+  function ensureSession(account) {
     const id = Number(account.id);
-    const view = normalizeView(requestedView);
-    const key = sessionKey(id, view);
-    accountById.set(id, account);
-    const existing = sessions.get(key);
+    const existing = sessions.get(id);
     if (existing?.appPackage === account.packageName) return existing;
     if (existing) existing.disable().catch(() => { });
     const session = createSession({
       id,
-      view,
       adbPath,
       device,
       serverPath,
       appPackage: account.packageName,
     });
-    sessions.set(key, session);
+    sessions.set(id, session);
 
     // Pre-start the session in the background so it is instantly ready when the user opens the page!
     session.start().catch((err) => {
-      console.error(`[scrcpy-prestart:${id}:${view}] Failed to pre-start session:`, err);
+      console.error(`[scrcpy-prestart:${id}] Failed to pre-start session:`, err);
     });
 
     return session;
   }
 
   async function removeSession(id) {
-    const accountId = Number(id);
-    accountById.delete(accountId);
-    const matchingSessions = [...sessions.entries()].filter(
-      ([key]) => key.startsWith(`${accountId}:`)
-    );
-    for (const [key, session] of matchingSessions) {
-      sessions.delete(key);
-      await session.disable();
-    }
-    return matchingSessions.length > 0;
+    const session = sessions.get(Number(id));
+    if (!session) return false;
+    sessions.delete(Number(id));
+    await session.disable();
+    return true;
   }
 
   for (const account of accounts) {
@@ -626,8 +603,8 @@ export function attachMultiScrcpyRelay({
   }
 
   const wss = new WebSocketServer({ noServer: true });
-  wss.on("connection", (socket, request, key) => {
-    sessions.get(key)?.addSocket(socket);
+  wss.on("connection", (socket, request, sessionId) => {
+    sessions.get(sessionId)?.addSocket(socket);
   });
 
   server.on("upgrade", (request, socket, head) => {
@@ -638,16 +615,12 @@ export function attachMultiScrcpyRelay({
       return;
     }
     const sessionId = Number(match[1]);
-    const view = normalizeView(url.searchParams.get("view"));
-    const account = accountById.get(sessionId);
-    if (!account) {
+    if (!sessions.has(sessionId)) {
       socket.destroy();
       return;
     }
-    const key = sessionKey(sessionId, view);
-    ensureSession(account, view);
     wss.handleUpgrade(request, socket, head, (webSocket) => {
-      wss.emit("connection", webSocket, request, key);
+      wss.emit("connection", webSocket, request, sessionId);
     });
   });
 
@@ -657,8 +630,8 @@ export function attachMultiScrcpyRelay({
 
   return {
     ensureSession,
-    getSession(id, view = "android") {
-      return sessions.get(sessionKey(id, view));
+    getSession(id) {
+      return sessions.get(Number(id));
     },
     listStates() {
       return [...sessions.values()].map((session) => session.getState());
