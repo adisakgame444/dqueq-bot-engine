@@ -221,24 +221,6 @@ function createSession({
   let latestConfiguration;
   let videoWidth = DISPLAY_WIDTH;
   let videoHeight = DISPLAY_HEIGHT;
-  let virtualDisplayId;
-
-  async function launchAppOnVirtualDisplay() {
-    if (!Number.isInteger(virtualDisplayId)) {
-      throw new Error(`Virtual display ID is not available for ${id}:${view}`);
-    }
-    await runAdb(adbPath, device, [
-      "shell",
-      "am",
-      "start",
-      "--display",
-      String(virtualDisplayId),
-      "--activity-new-task",
-      "--activity-multiple-task",
-      "-n",
-      `${appPackage}/me.deltaqueue.dqueue.MainActivity`,
-    ]);
-  }
 
   const options = new AdbScrcpyOptions3_3_3({
     video: true,
@@ -249,7 +231,7 @@ function createSession({
     maxFps: 60,
     maxSize: 1080,
     sendFrameMeta: true,
-    logLevel: "info",
+    logLevel: "warn",
     tunnelForward: true,
     scid,
     newDisplay: new ScrcpyNewDisplay(DISPLAY_WIDTH, DISPLAY_HEIGHT, density),
@@ -300,7 +282,6 @@ function createSession({
     controlConnection?.socket.destroy();
     videoConnection = undefined;
     controlConnection = undefined;
-    virtualDisplayId = undefined;
     if (process && !process.killed) process.kill();
     process = undefined;
     await runAdb(adbPath, device, [
@@ -356,34 +337,16 @@ function createSession({
         windowsHide: true,
         stdio: ["ignore", "pipe", "pipe"],
       });
-      let resolveDisplayId;
-      let displayIdTimeout;
-      let serverLogTail = "";
-      const displayIdReady = new Promise((resolve) => {
-        resolveDisplayId = resolve;
-        displayIdTimeout = setTimeout(() => resolve(undefined), 10_000);
-      });
-      const handleServerLog = (text, isError) => {
-        const output = String(text);
-        serverLogTail = `${serverLogTail}${output}`.slice(-4096);
-        const displayMatch = serverLogTail.match(
-          /New display:.*?\(id=(\d+)\)/
-        );
-        if (displayMatch && virtualDisplayId === undefined) {
-          virtualDisplayId = Number(displayMatch[1]);
-          clearTimeout(displayIdTimeout);
-          resolveDisplayId(virtualDisplayId);
-        }
-        const line = output.trim();
-        if (!line) return;
-        const message = `[scrcpy:${id}:${view}] ${line}`;
-        if (isError) console.error(message);
-        else console.log(message);
-      };
       process.stdout.setEncoding("utf8");
       process.stderr.setEncoding("utf8");
-      process.stdout.on("data", (text) => handleServerLog(text, false));
-      process.stderr.on("data", (text) => handleServerLog(text, true));
+      process.stdout.on("data", (text) => {
+        const line = String(text).trim();
+        if (line) console.log(`[scrcpy:${id}:${view}] ${line}`);
+      });
+      process.stderr.on("data", (text) => {
+        const line = String(text).trim();
+        if (line) console.error(`[scrcpy:${id}:${view}] ${line}`);
+      });
       process.once("exit", (code) => {
         if (state === "streaming" || state === "starting") {
           state = "error";
@@ -423,8 +386,7 @@ function createSession({
       let appOpenError;
       let waitingForAppKeyframe = true;
       const openApp = (async () => {
-        await displayIdReady;
-        await launchAppOnVirtualDisplay();
+        await controller.startApp(appPackage);
         await new Promise((resolve) => setTimeout(resolve, 500));
         await controller.resetVideo();
         appReady = true;
@@ -494,7 +456,7 @@ function createSession({
       return true;
     }
     if (payload.type === "launch") {
-      await launchAppOnVirtualDisplay();
+      await controller.startApp(appPackage);
       return true;
     }
     if (payload.type === "close") {
