@@ -7,7 +7,7 @@ const DEVICE_WIDTH = 900;
 const DEVICE_HEIGHT = 1920;
 const isAppView = document.body.dataset.view === "app" || document.body.dataset.view === "app-ios";
 const isIosView = document.body.dataset.view === "app-ios";
-const androidAppScaleY = isAppView && !isIosView ? 1980 / DEVICE_HEIGHT : 1;
+const androidAppScaleY = isAppView && !isIosView ? 1.5 : 1;
 const SESSION_VIEW = isIosView ? "ios" : "android";
 const IOS_TOP_CROP = 0;
 const Y_OFFSET = isIosView ? IOS_TOP_CROP : 0;
