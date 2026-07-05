@@ -7,6 +7,7 @@ import {
   AndroidKeyEventAction,
   AndroidMotionEventAction,
   AndroidMotionEventButton,
+  ScrcpyCodecOptions,
   ScrcpyControlMessageWriter,
   ScrcpyNewDisplay,
   ScrcpyPointerId,
@@ -19,7 +20,8 @@ import {
 } from "@yume-chan/stream-extra";
 import { WebSocket, WebSocketServer } from "ws";
 
-const MAX_BUFFERED_BYTES = 16 * 1024 * 1024;
+const MAX_BUFFERED_BYTES = 512 * 1024;
+const MAX_SOCKET_BUFFER_BYTES = 8 * 1024 * 1024;
 const DISPLAY_WIDTH = 900;
 const DISPLAY_HEIGHT = 1920;
 const DISPLAY_DENSITIES = {
@@ -204,6 +206,7 @@ function createSession({
   appPackage,
 }) {
   const sockets = new Set();
+  const socketStates = new WeakMap();
   const transportId = id * 2 + (view === "ios" ? 1 : 0);
   const density = DISPLAY_DENSITIES[view];
   const scid = transportId.toString(16);
@@ -221,6 +224,7 @@ function createSession({
   let latestConfiguration;
   let videoWidth = DISPLAY_WIDTH;
   let videoHeight = DISPLAY_HEIGHT;
+  let keyframeRequestAt = 0;
 
   const options = new AdbScrcpyOptions3_3_3({
     video: true,
@@ -228,6 +232,10 @@ function createSession({
     control: true,
     videoCodec: "h264",
     videoBitRate: 4_000_000,
+    videoCodecOptions: new ScrcpyCodecOptions({
+      iFrameInterval: 1,
+      maxBframes: 0,
+    }),
     maxFps: 60,
     maxSize: 1080,
     sendFrameMeta: true,
@@ -249,12 +257,7 @@ function createSession({
     for (const socket of sockets) sendJson(socket, payload);
   }
 
-  function sendPacket(socket, packet) {
-    if (socket.readyState !== WebSocket.OPEN) return;
-    if (socket.bufferedAmount > MAX_BUFFERED_BYTES) {
-      socket.close(1013, "Video client is too slow");
-      return;
-    }
+  function writePacket(socket, packet) {
     const data = Buffer.from(
       packet.data.buffer,
       packet.data.byteOffset,
@@ -265,6 +268,36 @@ function createSession({
       packet.type === "configuration" ? 0 : packet.keyframe ? 2 : 1;
     data.copy(message, 1);
     socket.send(message, { binary: true });
+  }
+
+  function requestKeyframe() {
+    const now = Date.now();
+    if (!controller || now - keyframeRequestAt < 500) return;
+    keyframeRequestAt = now;
+    controller.resetVideo().catch(() => { });
+  }
+
+  function sendPacket(socket, packet) {
+    if (socket.readyState !== WebSocket.OPEN) return;
+    if (socket.bufferedAmount > MAX_SOCKET_BUFFER_BYTES) {
+      socket.close(1013, "Video client is too slow");
+      return;
+    }
+    const socketState = socketStates.get(socket);
+    if (socket.bufferedAmount > MAX_BUFFERED_BYTES) {
+      if (socketState) socketState.waitingForKeyframe = true;
+      requestKeyframe();
+      return;
+    }
+    if (socketState?.waitingForKeyframe) {
+      if (!packet.keyframe) {
+        requestKeyframe();
+        return;
+      }
+      if (latestConfiguration) writePacket(socket, latestConfiguration);
+      socketState.waitingForKeyframe = false;
+    }
+    writePacket(socket, packet);
   }
 
   function broadcastPacket(packet) {
@@ -433,6 +466,7 @@ function createSession({
 
   function addSocket(socket) {
     sockets.add(socket);
+    socketStates.set(socket, { waitingForKeyframe: false });
     sendJson(socket, { type: "state", state, detail });
     if (latestMetadata) sendJson(socket, latestMetadata);
     if (latestConfiguration) sendPacket(socket, latestConfiguration);
