@@ -236,7 +236,7 @@ function createSession({
       iFrameInterval: 1,
       maxBframes: 0,
     }),
-    maxFps: 60,
+    maxFps: 120,
     maxSize: 1080,
     sendFrameMeta: true,
     logLevel: "warn",
