@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const STREAM_CLIENT_VERSION = "115";
+const STREAM_CLIENT_VERSION = "116";
 
 export function getAgentOrigin() {
   return (
@@ -34,4 +34,3 @@ export function renderRemotePage(templateName: "app-ios.html" | "app-only.html",
       `${agentScript}\n  <script src="/remote/stream-client.js?v=${STREAM_CLIENT_VERSION}" defer></script>`
     );
 }
-

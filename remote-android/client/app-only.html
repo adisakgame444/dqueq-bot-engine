@@ -39,10 +39,10 @@
     .app-stage {
       position: relative;
       display: grid;
-      grid-template-rows: 78fr 1980fr;
-      width: min(450px, calc(100dvh * 900 / 2058));
+      grid-template-rows: 78fr 1920fr;
+      width: min(450px, calc((100dvh - 24px) * 900 / 1998));
       max-width: calc(100vw - 24px);
-      aspect-ratio: 900 / 2058;
+      aspect-ratio: 900 / 1998;
       overflow: hidden;
       border: 1px solid #202a39;
       border-radius: 22px;
@@ -68,9 +68,10 @@
       left: 0;
       display: block;
       width: 100%;
-      height: 100%;
+      height: 103.125%;
       background: #030712;
       object-fit: fill;
+      transform-origin: top center;
     }
 
     #screen {
@@ -251,7 +252,7 @@
         width: 100%;
         height: 100%;
         display: grid;
-        grid-template-rows: 78fr 1980fr; /* Slightly stretch the Android stream vertically. */
+        grid-template-rows: 78fr 1920fr; /* Keep the outer Android frame at its original size. */
         padding-top: calc(env(safe-area-inset-top, 0px) - 5px); /* Shift up by 5px */
         max-width: none;
         transform: none;
@@ -285,7 +286,7 @@
         top: 0;
         left: 0;
         width: 100%;
-        height: 100% !important;
+        height: 103.125% !important;
         transform: none;
       }
 
