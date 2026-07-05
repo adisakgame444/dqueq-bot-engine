@@ -221,6 +221,7 @@ function createSession({
   let latestConfiguration;
   let videoWidth = DISPLAY_WIDTH;
   let videoHeight = DISPLAY_HEIGHT;
+  let idleCleanupTimer;
 
   const options = new AdbScrcpyOptions3_3_3({
     video: true,
@@ -272,6 +273,10 @@ function createSession({
   }
 
   async function cleanup() {
+    if (idleCleanupTimer) {
+      clearTimeout(idleCleanupTimer);
+      idleCleanupTimer = undefined;
+    }
     try {
       controller?.releaseLock();
     } catch {
@@ -432,6 +437,10 @@ function createSession({
   }
 
   function addSocket(socket) {
+    if (idleCleanupTimer) {
+      clearTimeout(idleCleanupTimer);
+      idleCleanupTimer = undefined;
+    }
     sockets.add(socket);
     sendJson(socket, { type: "state", state, detail });
     if (latestMetadata) sendJson(socket, latestMetadata);
@@ -442,8 +451,17 @@ function createSession({
       setTimeout(() => controller?.resetVideo().catch(() => { }), 100);
     }
 
-    socket.on("close", () => sockets.delete(socket));
-    socket.on("error", () => sockets.delete(socket));
+    const removeSocket = () => {
+      sockets.delete(socket);
+      if (sockets.size === 0 && !idleCleanupTimer) {
+        idleCleanupTimer = setTimeout(() => {
+          idleCleanupTimer = undefined;
+          if (sockets.size === 0) cleanup().catch(() => { });
+        }, 15_000);
+      }
+    };
+    socket.on("close", removeSocket);
+    socket.on("error", removeSocket);
   }
 
   async function handleInput(payload) {
@@ -599,11 +617,6 @@ export function attachMultiScrcpyRelay({
       appPackage: account.packageName,
     });
     sessions.set(key, session);
-
-    // Pre-start the session in the background so it is instantly ready when the user opens the page!
-    session.start().catch((err) => {
-      console.error(`[scrcpy-prestart:${id}:${view}] Failed to pre-start session:`, err);
-    });
 
     return session;
   }

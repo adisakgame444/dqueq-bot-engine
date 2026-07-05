@@ -644,9 +644,7 @@ const server = http.createServer(async (req, res) => {
       }
       const relay = await scrcpyRelayPromise;
       const sessionView = appIosMatch ? "ios" : "android";
-      relay.ensureSession(account, sessionView).start().catch(() => {
-        // The WebSocket client will receive and report any startup error.
-      });
+      relay.ensureSession(account, sessionView);
       const safeName = account.name.replace(
         /[&<>"']/g,
         (character) =>
