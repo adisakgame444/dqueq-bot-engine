@@ -68,6 +68,7 @@ let socket;
 let fallbackReason = "";
 let waitingForKeyframe = true;
 let fallbackTimer;
+let stoppedByModeSwitch = false;
 
 function setLastAction(message) {
   if (lastAction) lastAction.textContent = message;
@@ -305,6 +306,29 @@ function showLiveStream() {
   updateDebug();
 }
 
+function showModeSwitched(reason) {
+  stoppedByModeSwitch = true;
+  streamActive = false;
+  fallbackReason = reason;
+  canvas.hidden = true;
+  screen.hidden = true;
+  loading.style.display = "grid";
+  loading.textContent =
+    "Stream closed because another mode was opened. Click to reopen.";
+  streamMode.textContent = reason;
+  stopPngFallback();
+  stopFpsCounter();
+  updateDebug({ modeSwitched: true });
+}
+
+function reopenSwitchedMode() {
+  if (!stoppedByModeSwitch) return;
+  stoppedByModeSwitch = false;
+  stopped = false;
+  showPngFallback("waiting for virtual display");
+  connectScrcpy();
+}
+
 function refreshPngFallback() {
   if (streamActive) return;
   screen.onload = () => {
@@ -417,8 +441,13 @@ function connectScrcpy() {
     }
   });
 
-  socket.addEventListener("close", () => {
+  socket.addEventListener("close", (event) => {
     disposeDecoder();
+    if (event.code === 4001) {
+      stopped = true;
+      showModeSwitched(event.reason || "Stream mode switched");
+      return;
+    }
     if (!stopped) {
       if (!fallbackReason || fallbackReason === "waiting for virtual display") {
         showPngFallback("stream disconnected");
@@ -433,6 +462,11 @@ function connectScrcpy() {
     }
   });
 }
+
+loading.addEventListener("click", reopenSwitchedMode);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) reopenSwitchedMode();
+});
 
 async function checkStatus() {
   if (!status || !statusText) return;

@@ -554,17 +554,20 @@ function createSession({
     },
     handleInput,
     cleanup,
-    async disable() {
+    async disable({
+      message = "Account is disabled",
+      closeCode = 1000,
+    } = {}) {
       state = "disabled";
-      detail = "Account is disabled";
+      detail = message;
       broadcastJson({ type: "state", state, detail });
       for (const socket of sockets) {
-        socket.close(1000, "Account disabled");
+        socket.close(closeCode, message);
       }
       sockets.clear();
       await cleanup();
       state = "disabled";
-      detail = "Account is disabled";
+      detail = message;
     },
   };
 }
@@ -578,11 +581,12 @@ export function attachMultiScrcpyRelay({
 }) {
   const sessions = new Map();
   const accountById = new Map();
+  const switchOperations = new Map();
 
   const normalizeView = (view) => (view === "ios" ? "ios" : "android");
   const sessionKey = (id, view) => `${Number(id)}:${normalizeView(view)}`;
 
-  function ensureSession(account, requestedView = "android") {
+  function createSessionFor(account, requestedView) {
     const id = Number(account.id);
     const view = normalizeView(requestedView);
     const key = sessionKey(id, view);
@@ -599,26 +603,67 @@ export function attachMultiScrcpyRelay({
       appPackage: account.packageName,
     });
     sessions.set(key, session);
-
-    // Pre-start the session in the background so it is instantly ready when the user opens the page!
-    session.start().catch((err) => {
-      console.error(`[scrcpy-prestart:${id}:${view}] Failed to pre-start session:`, err);
-    });
-
     return session;
+  }
+
+  function runExclusive(id, operation) {
+    const accountId = Number(id);
+    const previous = switchOperations.get(accountId) || Promise.resolve();
+    const current = previous.catch(() => { }).then(operation);
+    switchOperations.set(accountId, current);
+    const clearCurrent = () => {
+      if (switchOperations.get(accountId) === current) {
+        switchOperations.delete(accountId);
+      }
+    };
+    current.then(clearCurrent, clearCurrent);
+    return current;
+  }
+
+  function activateSession(account, requestedView = "android") {
+    const id = Number(account.id);
+    const view = normalizeView(requestedView);
+    accountById.set(id, account);
+    return runExclusive(id, async () => {
+      const targetKey = sessionKey(id, view);
+      for (const [key, session] of [...sessions.entries()]) {
+        if (key.startsWith(`${id}:`) && key !== targetKey) {
+          sessions.delete(key);
+          await session.disable({
+            message: `Switched to ${view} stream`,
+            closeCode: 4001,
+          });
+        }
+      }
+      return createSessionFor(account, view);
+    });
+  }
+
+  function ensureSession(account, requestedView = "android") {
+    const view = normalizeView(requestedView);
+    activateSession(account, view)
+      .then((session) => session.start())
+      .catch((error) => {
+        console.error(
+          `[scrcpy-prestart:${account.id}:${view}] Failed to pre-start session:`,
+          error
+        );
+      });
   }
 
   async function removeSession(id) {
     const accountId = Number(id);
     accountById.delete(accountId);
-    const matchingSessions = [...sessions.entries()].filter(
-      ([key]) => key.startsWith(`${accountId}:`)
-    );
-    for (const [key, session] of matchingSessions) {
-      sessions.delete(key);
-      await session.disable();
-    }
-    return matchingSessions.length > 0;
+    return runExclusive(accountId, async () => {
+      const matchingSessions = [...sessions.entries()].filter(
+        ([key]) => key.startsWith(`${accountId}:`)
+      );
+      for (const [key, session] of matchingSessions) {
+        sessions.delete(key);
+        await session.disable();
+      }
+      return matchingSessions.length > 0;
+    });
   }
 
   for (const account of accounts) {
@@ -630,7 +675,7 @@ export function attachMultiScrcpyRelay({
     sessions.get(key)?.addSocket(socket);
   });
 
-  server.on("upgrade", (request, socket, head) => {
+  server.on("upgrade", async (request, socket, head) => {
     const url = new URL(request.url || "/", "http://localhost");
     const match = /^\/scrcpy\/(\d+)$/.exec(url.pathname);
     if (!match) {
@@ -644,11 +689,15 @@ export function attachMultiScrcpyRelay({
       socket.destroy();
       return;
     }
-    const key = sessionKey(sessionId, view);
-    ensureSession(account, view);
-    wss.handleUpgrade(request, socket, head, (webSocket) => {
-      wss.emit("connection", webSocket, request, key);
-    });
+    try {
+      const key = sessionKey(sessionId, view);
+      await activateSession(account, view);
+      wss.handleUpgrade(request, socket, head, (webSocket) => {
+        wss.emit("connection", webSocket, request, key);
+      });
+    } catch {
+      socket.destroy();
+    }
   });
 
   server.once("close", () => {
@@ -656,6 +705,7 @@ export function attachMultiScrcpyRelay({
   });
 
   return {
+    activateSession,
     ensureSession,
     getSession(id, view = "android") {
       return sessions.get(sessionKey(id, view));
