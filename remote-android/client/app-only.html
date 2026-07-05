@@ -39,10 +39,10 @@
     .app-stage {
       position: relative;
       display: grid;
-      grid-template-rows: 78fr 1920fr;
-      width: min(450px, calc((100dvh - 24px) * 900 / 1998));
+      grid-template-rows: 78fr 1980fr;
+      width: min(450px, calc((100dvh - 24px) * 900 / 2058));
       max-width: calc(100vw - 24px);
-      aspect-ratio: 900 / 1998;
+      aspect-ratio: 900 / 2058;
       overflow: hidden;
       border: 1px solid #202a39;
       border-radius: 22px;
@@ -251,7 +251,7 @@
         width: 100%;
         height: 100%;
         display: grid;
-        grid-template-rows: 78fr 1920fr; /* Let simulated status bar take 78fr and remote screen take 1920fr */
+        grid-template-rows: 78fr 1980fr; /* Slightly stretch the Android stream vertically. */
         padding-top: calc(env(safe-area-inset-top, 0px) - 5px); /* Shift up by 5px */
         max-width: none;
         transform: none;
