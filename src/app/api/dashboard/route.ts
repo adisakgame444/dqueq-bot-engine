@@ -43,7 +43,7 @@ export async function GET(req: NextRequest) {
 
     const agentRes = await fetch(`${base}/api/accounts`, {
       cache: "no-store",
-      signal: AbortSignal.timeout(2500),
+      signal: AbortSignal.timeout(8000),
     });
     if (agentRes.ok) {
       const agentData = await agentRes.json();
