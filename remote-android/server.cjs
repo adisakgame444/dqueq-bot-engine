@@ -643,7 +643,8 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       const relay = await scrcpyRelayPromise;
-      relay.getSession(accountId)?.start().catch(() => {
+      const sessionView = appIosMatch ? "ios" : "android";
+      relay.ensureSession(account, sessionView).start().catch(() => {
         // The WebSocket client will receive and report any startup error.
       });
       const safeName = account.name.replace(
@@ -898,6 +899,8 @@ const server = http.createServer(async (req, res) => {
         (apiAccountMatch && apiAccountMatch[2] === "status"))
     ) {
       const sessionId = apiAccountMatch ? Number(apiAccountMatch[1]) : 1;
+      const sessionView =
+        url.searchParams.get("view") === "ios" ? "ios" : "android";
       const account = accountStore.getAccount(sessionId);
       if (!account || !account.enabled) {
         sendJson(res, 404, {
@@ -910,7 +913,7 @@ const server = http.createServer(async (req, res) => {
       const scrcpy = await scrcpyRelayPromise
         .then(
           (relay) =>
-            relay.getSession(sessionId)?.getState() || {
+            relay.getSession(sessionId, sessionView)?.getState() || {
               state: "idle",
               detail: "Waiting for session",
               clients: 0,
@@ -945,13 +948,15 @@ const server = http.createServer(async (req, res) => {
         (apiAccountMatch && apiAccountMatch[2] === "input"))
     ) {
       const sessionId = apiAccountMatch ? Number(apiAccountMatch[1]) : 1;
+      const sessionView =
+        url.searchParams.get("view") === "ios" ? "ios" : "android";
       const account = accountStore.getAccount(sessionId);
       if (!account || !account.enabled) {
         throw new Error("Account was not found or is disabled");
       }
       const payload = await readJson(req);
       const relay = await scrcpyRelayPromise;
-      const session = relay.getSession(sessionId);
+      const session = relay.getSession(sessionId, sessionView);
       if (!session) throw new Error("Unknown account session");
       const handledByScrcpy = await session.handleInput(payload);
       if (!handledByScrcpy) {
