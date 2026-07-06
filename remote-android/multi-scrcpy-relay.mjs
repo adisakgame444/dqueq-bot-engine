@@ -25,7 +25,7 @@ const MAX_SOCKET_BUFFER_BYTES = 8 * 1024 * 1024;
 const DISPLAY_WIDTH = 900;
 const DISPLAY_HEIGHT = 1920;
 const DISPLAY_DENSITIES = {
-  android: 420,
+  android: 400,
   ios: 360,
 };
 let adbConnectPromise = null;
