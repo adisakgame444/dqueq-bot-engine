@@ -27,6 +27,8 @@ const DISPLAY_HEIGHTS = {
   android: 1980,
   ios: 1920,
 };
+const MIN_ANDROID_DISPLAY_HEIGHT = 1080;
+const MAX_ANDROID_DISPLAY_HEIGHT = 2800;
 const DISPLAY_DENSITIES = {
   android: 400,
   ios: 360,
@@ -203,6 +205,7 @@ async function killScrcpyProcesses(adbPath, device, targetScid) {
 function createSession({
   id,
   view,
+  displayHeight,
   adbPath,
   device,
   serverPath,
@@ -212,7 +215,6 @@ function createSession({
   const socketStates = new WeakMap();
   const transportId = id * 2 + (view === "ios" ? 1 : 0);
   const density = DISPLAY_DENSITIES[view];
-  const displayHeight = DISPLAY_HEIGHTS[view];
   const scid = transportId.toString(16);
   const localPort = 27200 + transportId;
   const deviceServerPath = `/data/local/tmp/dqueq-scrcpy-${transportId}.jar`;
@@ -410,6 +412,8 @@ function createSession({
         codec: parsedVideo.metadata.codec,
         width: parsedVideo.metadata.width || DISPLAY_WIDTH,
         height: parsedVideo.metadata.height || displayHeight,
+        displayWidth: DISPLAY_WIDTH,
+        displayHeight,
         session: id,
       };
       videoWidth = latestMetadata.width;
@@ -575,6 +579,7 @@ function createSession({
   return {
     id,
     view,
+    displayHeight,
     density,
     appPackage,
     addSocket,
@@ -586,6 +591,8 @@ function createSession({
         clients: sockets.size,
         session: id,
         view,
+        displayWidth: DISPLAY_WIDTH,
+        displayHeight,
         density,
         appPackage,
       };
@@ -624,17 +631,44 @@ export function attachMultiScrcpyRelay({
   const normalizeView = (view) => (view === "ios" ? "ios" : "android");
   const sessionKey = (id, view) => `${Number(id)}:${normalizeView(view)}`;
 
-  function createSessionFor(account, requestedView) {
+  function normalizeDisplayHeight(view, requestedHeight) {
+    if (view === "ios") return DISPLAY_HEIGHTS.ios;
+    const parsed = Number(requestedHeight);
+    if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
+    const clamped = Math.max(
+      MIN_ANDROID_DISPLAY_HEIGHT,
+      Math.min(MAX_ANDROID_DISPLAY_HEIGHT, parsed)
+    );
+    return Math.round(clamped / 2) * 2;
+  }
+
+  async function createSessionFor(account, requestedView, requestedHeight) {
     const id = Number(account.id);
     const view = normalizeView(requestedView);
     const key = sessionKey(id, view);
     accountById.set(id, account);
     const existing = sessions.get(key);
-    if (existing?.appPackage === account.packageName) return existing;
-    if (existing) existing.disable().catch(() => { });
+    const displayHeight =
+      normalizeDisplayHeight(view, requestedHeight) ??
+      existing?.displayHeight ??
+      DISPLAY_HEIGHTS[view];
+    if (
+      existing?.appPackage === account.packageName &&
+      existing.displayHeight === displayHeight
+    ) {
+      return existing;
+    }
+    if (existing) {
+      sessions.delete(key);
+      await existing.disable({
+        message: "Android viewport changed",
+        closeCode: 4001,
+      });
+    }
     const session = createSession({
       id,
       view,
+      displayHeight,
       adbPath,
       device,
       serverPath,
@@ -658,7 +692,11 @@ export function attachMultiScrcpyRelay({
     return current;
   }
 
-  function activateSession(account, requestedView = "android") {
+  function activateSession(
+    account,
+    requestedView = "android",
+    requestedHeight
+  ) {
     const id = Number(account.id);
     const view = normalizeView(requestedView);
     accountById.set(id, account);
@@ -673,7 +711,7 @@ export function attachMultiScrcpyRelay({
           });
         }
       }
-      return createSessionFor(account, view);
+      return createSessionFor(account, view, requestedHeight);
     });
   }
 
@@ -722,6 +760,7 @@ export function attachMultiScrcpyRelay({
     }
     const sessionId = Number(match[1]);
     const view = normalizeView(url.searchParams.get("view"));
+    const requestedHeight = url.searchParams.get("displayHeight");
     const account = accountById.get(sessionId);
     if (!account) {
       socket.destroy();
@@ -729,7 +768,7 @@ export function attachMultiScrcpyRelay({
     }
     try {
       const key = sessionKey(sessionId, view);
-      await activateSession(account, view);
+      await activateSession(account, view, requestedHeight);
       wss.handleUpgrade(request, socket, head, (webSocket) => {
         wss.emit("connection", webSocket, request, key);
       });

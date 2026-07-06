@@ -11,6 +11,7 @@
   <title>__ACCOUNT_NAME__</title>
   <style>
     :root {
+      --android-display-height: 1980fr;
       color-scheme: dark;
       background: #030712;
     }
@@ -39,7 +40,7 @@
     .app-stage {
       position: relative;
       display: grid;
-      grid-template-rows: 78fr 1980fr;
+      grid-template-rows: 78fr var(--android-display-height);
       width: min(450px, calc((100dvh - 24px) * 900 / 2058));
       max-width: calc(100vw - 24px);
       aspect-ratio: 900 / 2058;
@@ -239,20 +240,20 @@
       html,
       body {
         height: 100%;
-        place-items: center;
+        place-items: start center;
         background: linear-gradient(to right, #eb5c24, #f98f2a); /* Brand gradient background */
       }
 
       .app-stage {
-        position: relative;
-        inset: auto;
-        width: min(100vw, calc(100dvh * 900 / 2058));
-        height: min(100dvh, calc(100vw * 2058 / 900));
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
         display: grid;
-        grid-template-rows: 78fr 1980fr;
+        grid-template-rows: 78fr var(--android-display-height);
         padding-top: 0;
         max-width: none;
-        aspect-ratio: 900 / 2058;
+        aspect-ratio: auto;
         transform: none;
         border: 0;
         border-radius: 0;

@@ -6,13 +6,15 @@ import {
 const DEVICE_WIDTH = 900;
 const isAppView = document.body.dataset.view === "app" || document.body.dataset.view === "app-ios";
 const isIosView = document.body.dataset.view === "app-ios";
-const DEVICE_HEIGHT = isIosView ? 1920 : 1980;
 const SESSION_VIEW = isIosView ? "ios" : "android";
+const DEFAULT_DEVICE_HEIGHT = isIosView ? 1920 : 1980;
+const MIN_ANDROID_DEVICE_HEIGHT = 1080;
+const MAX_ANDROID_DEVICE_HEIGHT = 2800;
+const APP_STATUS_HEIGHT = 78;
 const IOS_TOP_CROP = 0;
 const Y_OFFSET = isIosView ? IOS_TOP_CROP : 0;
-const DEVICE_VISIBLE_HEIGHT = isIosView
-  ? DEVICE_HEIGHT - IOS_TOP_CROP
-  : DEVICE_HEIGHT;
+let deviceHeight = DEFAULT_DEVICE_HEIGHT;
+let deviceVisibleHeight = deviceHeight - Y_OFFSET;
 const H264_CODEC = 1748121140;
 const accountMatch = /^\/(?:account|app|app-ios)\/(\d+)$/.exec(location.pathname);
 const SESSION_ID = accountMatch ? Number(accountMatch[1]) : 1;
@@ -60,6 +62,36 @@ const appStatusBattery = document.getElementById("app-status-battery");
 let pointerStart = null;
 let pointerMoved = false;
 let stopped = false;
+
+function calculateAndroidDisplayHeight() {
+  if (!isAppView || isIosView) return DEFAULT_DEVICE_HEIGHT;
+  const viewportWidth = document.documentElement.clientWidth;
+  const viewportHeight = document.documentElement.clientHeight;
+  if (!viewportWidth || !viewportHeight) return DEFAULT_DEVICE_HEIGHT;
+
+  const requested =
+    (DEVICE_WIDTH * viewportHeight) / viewportWidth - APP_STATUS_HEIGHT;
+  const clamped = Math.max(
+    MIN_ANDROID_DEVICE_HEIGHT,
+    Math.min(MAX_ANDROID_DEVICE_HEIGHT, requested)
+  );
+  return Math.round(clamped / 2) * 2;
+}
+
+function setDeviceHeight(height) {
+  const parsed = Number(height);
+  if (!Number.isFinite(parsed) || parsed <= 0) return;
+  deviceHeight = parsed;
+  deviceVisibleHeight = deviceHeight - Y_OFFSET;
+  if (isAppView && !isIosView) {
+    document.documentElement.style.setProperty(
+      "--android-display-height",
+      `${deviceHeight}fr`
+    );
+  }
+}
+
+setDeviceHeight(calculateAndroidDisplayHeight());
 let streamActive = false;
 let keyQueue = Promise.resolve();
 let decoder;
@@ -110,12 +142,12 @@ async function apiInput(payload) {
 function point(event) {
   const rect = device.getBoundingClientRect();
   const sourceY =
-    ((event.clientY - rect.top) / rect.height) * DEVICE_VISIBLE_HEIGHT;
+    ((event.clientY - rect.top) / rect.height) * deviceVisibleHeight;
   return {
     x: Math.round(((event.clientX - rect.left) / rect.width) * DEVICE_WIDTH),
     y:
       Y_OFFSET +
-      Math.round(Math.max(0, Math.min(DEVICE_VISIBLE_HEIGHT, sourceY))),
+      Math.round(Math.max(0, Math.min(deviceVisibleHeight, sourceY))),
     time: Date.now(),
   };
 }
@@ -383,8 +415,12 @@ function connectScrcpy() {
     return;
   }
 
+  const socketParams = new URLSearchParams({ view: SESSION_VIEW });
+  if (isAppView && !isIosView) {
+    socketParams.set("displayHeight", String(deviceHeight));
+  }
   socket = new WebSocket(
-    `${AGENT_WS_ORIGIN}/scrcpy/${SESSION_ID}?view=${encodeURIComponent(SESSION_VIEW)}`
+    `${AGENT_WS_ORIGIN}/scrcpy/${SESSION_ID}?${socketParams.toString()}`
   );
   socket.binaryType = "arraybuffer";
 
@@ -401,6 +437,7 @@ function connectScrcpy() {
           socket.close();
           return;
         }
+        setDeviceHeight(message.displayHeight);
         await disposeDecoder();
         decoder = new WebCodecsVideoDecoder({
           codec: message.codec,

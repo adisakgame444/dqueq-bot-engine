@@ -936,8 +936,9 @@ const server = http.createServer(async (req, res) => {
         state,
         device: DEVICE,
         session: sessionId,
-        width: 900,
-        height: 1920,
+        width: scrcpy.displayWidth || 900,
+        height:
+          scrcpy.displayHeight || (sessionView === "ios" ? 1920 : 1980),
         scrcpy,
       });
       return;
