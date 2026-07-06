@@ -7,9 +7,7 @@ const DEVICE_WIDTH = 900;
 const DEVICE_HEIGHT = 1920;
 const isAppView = document.body.dataset.view === "app" || document.body.dataset.view === "app-ios";
 const isIosView = document.body.dataset.view === "app-ios";
-const BASE_ANDROID_APP_SCALE_Y = 1980 / DEVICE_HEIGHT;
-const MAX_ANDROID_APP_SCALE_Y = 1.25;
-let androidAppScaleY = isAppView && !isIosView ? BASE_ANDROID_APP_SCALE_Y : 1;
+const androidAppScaleY = isAppView && !isIosView ? 1980 / DEVICE_HEIGHT : 1;
 const SESSION_VIEW = isIosView ? "ios" : "android";
 const IOS_TOP_CROP = 0;
 const Y_OFFSET = isIosView ? IOS_TOP_CROP : 0;
@@ -108,24 +106,6 @@ async function apiInput(payload) {
   if (!response.ok || !data.ok) {
     throw new Error(data.error || `HTTP ${response.status}`);
   }
-}
-
-function updateAndroidAppScale() {
-  if (!isAppView || isIosView) return;
-  const rect = device.getBoundingClientRect();
-  if (!rect.width || !rect.height) return;
-
-  const scaleForViewport =
-    (rect.width * DEVICE_HEIGHT * BASE_ANDROID_APP_SCALE_Y) /
-    (rect.height * DEVICE_WIDTH);
-  androidAppScaleY = Math.min(
-    MAX_ANDROID_APP_SCALE_Y,
-    Math.max(BASE_ANDROID_APP_SCALE_Y, scaleForViewport)
-  );
-  document.documentElement.style.setProperty(
-    "--android-stream-scale-y",
-    String(androidAppScaleY)
-  );
 }
 
 function point(event) {
@@ -622,11 +602,6 @@ window.addEventListener("beforeunload", () => {
   socket?.close();
   disposeDecoder();
 });
-
-updateAndroidAppScale();
-window.addEventListener("resize", updateAndroidAppScale);
-window.visualViewport?.addEventListener("resize", updateAndroidAppScale);
-document.addEventListener("fullscreenchange", updateAndroidAppScale);
 
 checkStatus();
 loadAccountLinks();
