@@ -39,10 +39,10 @@
     .app-stage {
       position: relative;
       display: grid;
-      grid-template-rows: 78fr 1920fr;
-      width: min(450px, calc((100dvh - 24px) * 900 / 1998));
+      grid-template-rows: 78fr 1980fr;
+      width: min(450px, calc((100dvh - 24px) * 900 / 2058));
       max-width: calc(100vw - 24px);
-      aspect-ratio: 900 / 1998;
+      aspect-ratio: 900 / 2058;
       overflow: hidden;
       border: 1px solid #202a39;
       border-radius: 22px;
@@ -68,7 +68,7 @@
       left: 0;
       display: block;
       width: 100%;
-      height: 103.125%;
+      height: 100%;
       background: #030712;
       object-fit: fill;
       transform-origin: top center;
@@ -239,22 +239,20 @@
       html,
       body {
         height: 100%;
-        place-items: start center;
+        place-items: center;
         background: linear-gradient(to right, #eb5c24, #f98f2a); /* Brand gradient background */
       }
 
       .app-stage {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        width: 100%;
-        height: 100%;
+        position: relative;
+        inset: auto;
+        width: min(100vw, calc(100dvh * 900 / 2058));
+        height: min(100dvh, calc(100vw * 2058 / 900));
         display: grid;
-        grid-template-rows: 78fr 1920fr; /* Keep the outer Android frame at its original size. */
-        padding-top: calc(env(safe-area-inset-top, 0px) - 5px); /* Shift up by 5px */
+        grid-template-rows: 78fr 1980fr;
+        padding-top: 0;
         max-width: none;
+        aspect-ratio: 900 / 2058;
         transform: none;
         border: 0;
         border-radius: 0;
@@ -286,7 +284,7 @@
         top: 0;
         left: 0;
         width: 100%;
-        height: 103.125% !important;
+        height: 100% !important;
         transform: none;
       }
 

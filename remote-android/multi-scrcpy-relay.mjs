@@ -23,7 +23,10 @@ import { WebSocket, WebSocketServer } from "ws";
 const MAX_BUFFERED_BYTES = 512 * 1024;
 const MAX_SOCKET_BUFFER_BYTES = 8 * 1024 * 1024;
 const DISPLAY_WIDTH = 900;
-const DISPLAY_HEIGHT = 1920;
+const DISPLAY_HEIGHTS = {
+  android: 1980,
+  ios: 1920,
+};
 const DISPLAY_DENSITIES = {
   android: 400,
   ios: 360,
@@ -209,6 +212,7 @@ function createSession({
   const socketStates = new WeakMap();
   const transportId = id * 2 + (view === "ios" ? 1 : 0);
   const density = DISPLAY_DENSITIES[view];
+  const displayHeight = DISPLAY_HEIGHTS[view];
   const scid = transportId.toString(16);
   const localPort = 27200 + transportId;
   const deviceServerPath = `/data/local/tmp/dqueq-scrcpy-${transportId}.jar`;
@@ -223,7 +227,7 @@ function createSession({
   let latestMetadata;
   let latestConfiguration;
   let videoWidth = DISPLAY_WIDTH;
-  let videoHeight = DISPLAY_HEIGHT;
+  let videoHeight = displayHeight;
   let keyframeRequestAt = 0;
 
   const options = new AdbScrcpyOptions3_3_3({
@@ -242,7 +246,7 @@ function createSession({
     logLevel: "warn",
     tunnelForward: true,
     scid,
-    newDisplay: new ScrcpyNewDisplay(DISPLAY_WIDTH, DISPLAY_HEIGHT, density),
+    newDisplay: new ScrcpyNewDisplay(DISPLAY_WIDTH, displayHeight, density),
     vdSystemDecorations: false,
     vdDestroyContent: true,
   });
@@ -405,7 +409,7 @@ function createSession({
         type: "metadata",
         codec: parsedVideo.metadata.codec,
         width: parsedVideo.metadata.width || DISPLAY_WIDTH,
-        height: parsedVideo.metadata.height || DISPLAY_HEIGHT,
+        height: parsedVideo.metadata.height || displayHeight,
         session: id,
       };
       videoWidth = latestMetadata.width;
@@ -501,7 +505,7 @@ function createSession({
     const toVideoX = (value) =>
       Math.round((Number(value) / DISPLAY_WIDTH) * videoWidth);
     const toVideoY = (value) =>
-      Math.round((Number(value) / DISPLAY_HEIGHT) * videoHeight);
+      Math.round((Number(value) / displayHeight) * videoHeight);
     const touch = (action, x, y, pressure) =>
       controller.injectTouch({
         action,

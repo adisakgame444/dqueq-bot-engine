@@ -4,10 +4,9 @@ import {
 } from "@yume-chan/scrcpy-decoder-webcodecs";
 
 const DEVICE_WIDTH = 900;
-const DEVICE_HEIGHT = 1920;
 const isAppView = document.body.dataset.view === "app" || document.body.dataset.view === "app-ios";
 const isIosView = document.body.dataset.view === "app-ios";
-const androidAppScaleY = isAppView && !isIosView ? 1980 / DEVICE_HEIGHT : 1;
+const DEVICE_HEIGHT = isIosView ? 1920 : 1980;
 const SESSION_VIEW = isIosView ? "ios" : "android";
 const IOS_TOP_CROP = 0;
 const Y_OFFSET = isIosView ? IOS_TOP_CROP : 0;
@@ -111,8 +110,7 @@ async function apiInput(payload) {
 function point(event) {
   const rect = device.getBoundingClientRect();
   const sourceY =
-    (((event.clientY - rect.top) / rect.height) * DEVICE_VISIBLE_HEIGHT) /
-    androidAppScaleY;
+    ((event.clientY - rect.top) / rect.height) * DEVICE_VISIBLE_HEIGHT;
   return {
     x: Math.round(((event.clientX - rect.left) / rect.width) * DEVICE_WIDTH),
     y:
