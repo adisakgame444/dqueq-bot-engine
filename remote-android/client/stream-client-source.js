@@ -11,6 +11,7 @@ const DEFAULT_DEVICE_HEIGHT = isIosView ? 1920 : 1980;
 const MIN_ANDROID_DEVICE_HEIGHT = 1080;
 const MAX_ANDROID_DEVICE_HEIGHT = 2800;
 const APP_STATUS_HEIGHT = 78;
+const ANDROID_DISPLAY_HEIGHT_SCALE = 0.98;
 const IOS_TOP_CROP = 0;
 const Y_OFFSET = isIosView ? IOS_TOP_CROP : 0;
 let deviceHeight = DEFAULT_DEVICE_HEIGHT;
@@ -70,7 +71,8 @@ function calculateAndroidDisplayHeight() {
   if (!viewportWidth || !viewportHeight) return DEFAULT_DEVICE_HEIGHT;
 
   const requested =
-    (DEVICE_WIDTH * viewportHeight) / viewportWidth - APP_STATUS_HEIGHT;
+    ((DEVICE_WIDTH * viewportHeight) / viewportWidth - APP_STATUS_HEIGHT) *
+    ANDROID_DISPLAY_HEIGHT_SCALE;
   const clamped = Math.max(
     MIN_ANDROID_DEVICE_HEIGHT,
     Math.min(MAX_ANDROID_DEVICE_HEIGHT, requested)
