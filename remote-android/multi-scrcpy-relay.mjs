@@ -30,7 +30,7 @@ const DISPLAY_HEIGHTS = {
 const MIN_ANDROID_DISPLAY_HEIGHT = 1080;
 const MAX_ANDROID_DISPLAY_HEIGHT = 2800;
 const DISPLAY_DENSITIES = {
-  android: 360,
+  android: 400,
   ios: 360,
 };
 let adbConnectPromise = null;
