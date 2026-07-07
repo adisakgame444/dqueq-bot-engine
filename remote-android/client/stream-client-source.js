@@ -72,7 +72,7 @@ function calculateAndroidDisplayHeight() {
 
   const requested =
     (DEVICE_WIDTH * viewportHeight) / viewportWidth -
-    APP_STATUS_HEIGHT -
+    APP_STATUS_HEIGHT +
     ANDROID_DISPLAY_HEIGHT_ADJUST;
   const clamped = Math.max(
     MIN_ANDROID_DEVICE_HEIGHT,
