@@ -110,6 +110,17 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
     return resData;
   }
 
+  function mergeLocalEmailCloneMap(emailCloneMap?: Record<string, number>) {
+    if (!emailCloneMap) return;
+    setData((current) => ({
+      ...current,
+      emailCloneMap: {
+        ...current.emailCloneMap,
+        ...emailCloneMap,
+      },
+    }));
+  }
+
   async function toggleAccountEnabled(accountId: number, currentEnabled: boolean) {
     try {
       setLocalBusy(true);
@@ -120,8 +131,9 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
       });
       setNotice(`สลับสถานะบัญชี ${accountId} สำเร็จ!`);
       // Update localAccounts state immediately via proxy request
-      const localData = await localAgentRequest<{ accounts: any[] }>("/api/accounts");
+      const localData = await localAgentRequest<{ accounts: any[]; emailCloneMap?: Record<string, number> }>("/api/accounts");
       setLocalAccounts(localData.accounts || []);
+      mergeLocalEmailCloneMap(localData.emailCloneMap);
     } catch (e: any) {
       console.error(e);
       setNotice(`ล้มเหลว: ${e.message}`);
@@ -141,8 +153,9 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
       });
       setNotice(`บัญชีใหม่ ${res.account.name} สร้างและติดตั้งพร้อมใช้งานแล้ว!`);
       // Update localAccounts state immediately via proxy request
-      const localData = await localAgentRequest<{ accounts: any[] }>("/api/accounts");
+      const localData = await localAgentRequest<{ accounts: any[]; emailCloneMap?: Record<string, number> }>("/api/accounts");
       setLocalAccounts(localData.accounts || []);
+      mergeLocalEmailCloneMap(localData.emailCloneMap);
     } catch (e: any) {
       console.error(e);
       setNotice(`สร้างบัญชีล้มเหลว: ${e.message}`);
@@ -208,6 +221,7 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
               if (localRes.ok) {
                 const localData = await localRes.json();
                 setLocalAccounts(localData.accounts || []);
+                mergeLocalEmailCloneMap(localData.emailCloneMap);
                 setLocalError(false);
               } else {
                 setLocalError(true);

@@ -705,6 +705,21 @@ const server = http.createServer(async (req, res) => {
         "utf8"
       );
 
+      if (user && typeof user.email === "string" && user.email.trim()) {
+        const mapPath = path.join(DATA_DIR, "email_clone_map.json");
+        let map = {};
+        try {
+          if (fs.existsSync(mapPath)) {
+            map = JSON.parse(fs.readFileSync(mapPath, "utf8"));
+          }
+        } catch (e) {
+          map = {};
+        }
+        fs.mkdirSync(DATA_DIR, { recursive: true });
+        map[user.email.trim().toLowerCase()] = Number(accountId);
+        fs.writeFileSync(mapPath, JSON.stringify(map, null, 2), "utf8");
+      }
+
       sendJson(res, 200, { ok: true });
       return;
     }
