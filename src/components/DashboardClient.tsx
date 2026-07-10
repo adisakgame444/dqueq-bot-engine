@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import type { ApiBookingRecord } from "../lib/api_bookings";
 
@@ -59,10 +59,13 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
     }
   }, []);
 
-  const [localAccounts, setLocalAccounts] = useState<any[]>([]);
+  const [localAccounts, setLocalAccounts] = useState<any[]>(initialData.localAccounts || []);
   const [localBusy, setLocalBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [localError, setLocalError] = useState(false);
+  const localAgentFailureCountRef = useRef(0);
+  const dashboardSyncInFlightRef = useRef(false);
+  const localAgentSyncInFlightRef = useRef(false);
 
   async function localAgentRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
     const isAgentLocal = agentUrl.includes("127.0.0.1") || agentUrl.includes("localhost");
@@ -79,6 +82,7 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
         headers: options.headers || { "Content-Type": "application/json" },
         cache: "no-store",
       };
+      if (options.signal) fetchOpts.signal = options.signal;
       if (options.body) {
         fetchOpts.body = options.body;
       }
@@ -90,7 +94,7 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
       return resData as T;
     }
 
-    const response = await fetch("/api/manager/agent-proxy", {
+    const proxyFetchOptions: RequestInit = {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -102,7 +106,10 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
         agentUrl,
       }),
       cache: "no-store",
-    });
+    };
+    if (options.signal) proxyFetchOptions.signal = options.signal;
+
+    const response = await fetch("/api/manager/agent-proxy", proxyFetchOptions);
     const resData = await response.json();
     if (!response.ok || resData.ok === false) {
       throw new Error(resData.error || `HTTP ${response.status}`);
@@ -121,6 +128,28 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
     }));
   }
 
+  function updateDashboardData(nextData: DashboardData) {
+    setData((current) => ({
+      ...nextData,
+      emailCloneMap: {
+        ...current.emailCloneMap,
+        ...nextData.emailCloneMap,
+      },
+    }));
+  }
+
+  function applyLocalAgentData(localData: { accounts?: any[]; emailCloneMap?: Record<string, number> }) {
+    localAgentFailureCountRef.current = 0;
+    setLocalAccounts(localData.accounts || []);
+    mergeLocalEmailCloneMap(localData.emailCloneMap);
+    setLocalError(false);
+  }
+
+  function recordLocalAgentFailure() {
+    localAgentFailureCountRef.current += 1;
+    setLocalError(localAgentFailureCountRef.current >= 3);
+  }
+
   async function toggleAccountEnabled(accountId: number, currentEnabled: boolean) {
     try {
       setLocalBusy(true);
@@ -132,8 +161,7 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
       setNotice(`สลับสถานะบัญชี ${accountId} สำเร็จ!`);
       // Update localAccounts state immediately via proxy request
       const localData = await localAgentRequest<{ accounts: any[]; emailCloneMap?: Record<string, number> }>("/api/accounts");
-      setLocalAccounts(localData.accounts || []);
-      mergeLocalEmailCloneMap(localData.emailCloneMap);
+      applyLocalAgentData(localData);
     } catch (e: any) {
       console.error(e);
       setNotice(`ล้มเหลว: ${e.message}`);
@@ -154,8 +182,7 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
       setNotice(`บัญชีใหม่ ${res.account.name} สร้างและติดตั้งพร้อมใช้งานแล้ว!`);
       // Update localAccounts state immediately via proxy request
       const localData = await localAgentRequest<{ accounts: any[]; emailCloneMap?: Record<string, number> }>("/api/accounts");
-      setLocalAccounts(localData.accounts || []);
-      mergeLocalEmailCloneMap(localData.emailCloneMap);
+      applyLocalAgentData(localData);
     } catch (e: any) {
       console.error(e);
       setNotice(`สร้างบัญชีล้มเหลว: ${e.message}`);
@@ -168,9 +195,49 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
   useEffect(() => {
     let cancelled = false;
 
-    async function sync() {
+    async function syncDashboard() {
+      if (dashboardSyncInFlightRef.current) return;
+      dashboardSyncInFlightRef.current = true;
       try {
-        // Auto-discover local agent tunnel URL if available
+        setSyncState("syncing");
+        const res = await fetch("/api/dashboard?skipLocal=1", {
+          cache: "no-store",
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const nextData = await res.json() as DashboardData;
+
+        if (!cancelled) {
+          updateDashboardData(nextData);
+          setSyncState("live");
+        }
+      } catch (error) {
+        console.error("Dashboard sync failed:", error);
+        if (!cancelled) setSyncState("error");
+      } finally {
+        dashboardSyncInFlightRef.current = false;
+      }
+    }
+
+    syncDashboard();
+
+    const timer = setInterval(() => {
+      syncDashboard();
+    }, 3000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function syncLocalAgent() {
+      if (localAgentSyncInFlightRef.current) return;
+      localAgentSyncInFlightRef.current = true;
+      try {
         try {
           const discoveryRes = await fetch("http://127.0.0.1:5100/api/accounts", {
             cache: "no-store",
@@ -188,65 +255,28 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
             }
           }
         } catch (err) {
-          // Ignore discovery failures (local agent not running)
+          // Ignore discovery failures (local agent not running).
         }
 
-        setSyncState("syncing");
-        const isAgentLocal = agentUrl.includes("127.0.0.1") || agentUrl.includes("localhost");
-        const isPageOnRemoteHttps = typeof window !== "undefined" && 
-          window.location.protocol === "https:" && 
-          !window.location.hostname.includes("localhost") && 
-          !window.location.hostname.includes("127.0.0.1");
-
-        let dashboardUrl = "/api/dashboard";
-        if (!isAgentLocal || !isPageOnRemoteHttps) {
-          dashboardUrl += `?agent=${encodeURIComponent(agentUrl)}`;
-        }
-
-        const res = await fetch(dashboardUrl, { cache: "no-store" });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const nextData = await res.json() as DashboardData;
-
+        const localData = await localAgentRequest<{ accounts: any[]; emailCloneMap?: Record<string, number> }>("/api/accounts", {
+          signal: AbortSignal.timeout(10000),
+        });
         if (!cancelled) {
-          setData(nextData);
-          setSyncState("live");
-
-          if (isAgentLocal && isPageOnRemoteHttps) {
-            // Fetch local agent accounts list directly client-side
-            try {
-              const localRes = await fetch(`${agentUrl.replace(/\/+$/, "")}/api/accounts`, {
-                cache: "no-store",
-                signal: AbortSignal.timeout(2000),
-              });
-              if (localRes.ok) {
-                const localData = await localRes.json();
-                setLocalAccounts(localData.accounts || []);
-                mergeLocalEmailCloneMap(localData.emailCloneMap);
-                setLocalError(false);
-              } else {
-                setLocalError(true);
-                setLocalAccounts([]);
-              }
-            } catch (err) {
-              setLocalError(true);
-              setLocalAccounts([]);
-            }
-          } else {
-            setLocalAccounts(nextData.localAccounts || []);
-            setLocalError(!!nextData.localError);
-          }
+          applyLocalAgentData(localData);
         }
       } catch (error) {
-        console.error("Dashboard sync failed:", error);
-        if (!cancelled) setSyncState("error");
+        console.error("Local agent sync failed:", error);
+        if (!cancelled) recordLocalAgentFailure();
+      } finally {
+        localAgentSyncInFlightRef.current = false;
       }
     }
 
-    sync();
+    syncLocalAgent();
 
     const timer = setInterval(() => {
-      sync();
-    }, 3000);
+      syncLocalAgent();
+    }, 8000);
 
     return () => {
       cancelled = true;
