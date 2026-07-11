@@ -12,6 +12,17 @@ const DATA_DIR = process.env.DQUEUE_DATA_DIR || path.resolve(__dirname, "..");
 const PUBLIC_TUNNEL_FILE =
   process.env.DQUEUE_PUBLIC_TUNNEL_FILE ||
   path.join(DATA_DIR, "public-tunnel.json");
+
+process.on("uncaughtException", (error) => {
+  console.error("[Fatal] Remote Android uncaught exception:", error);
+  process.exitCode = 1;
+  setImmediate(() => process.exit(1));
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("[Fatal] Remote Android unhandled rejection:", reason);
+});
+
 function resolveAdbPath() {
   if (process.env.ADB_PATH) return process.env.ADB_PATH;
   const candidates = [

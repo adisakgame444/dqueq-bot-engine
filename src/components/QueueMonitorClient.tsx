@@ -36,6 +36,18 @@ function sortBookings(bookings: ApiBookingRecord[]): ApiBookingRecord[] {
 
 export default function QueueMonitorClient({ initialBookings }: { initialBookings: ApiBookingRecord[] }) {
   const [bookings, setBookings] = useState(sortBookings(initialBookings));
+  const [query, setQuery] = useState("");
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredBookings = normalizedQuery
+    ? bookings.filter((booking) =>
+        [
+          booking.queueCode,
+          booking.queueNo,
+          booking.shopName,
+          booking.branch,
+        ].some((value) => String(value ?? "").toLowerCase().includes(normalizedQuery))
+      )
+    : bookings;
 
   useEffect(() => {
     let cancelled = false;
@@ -68,6 +80,19 @@ export default function QueueMonitorClient({ initialBookings }: { initialBooking
   return (
     <section className="overflow-hidden rounded-[18px] border border-[#dbe7ef] bg-white shadow-xl shadow-slate-300/35">
       <div className="h-1 bg-gradient-to-r from-[#0e9384] via-[#24b4c9] to-[#b5473f]" />
+      <div className="border-b border-[#eef0f3] bg-white px-4 py-3 sm:px-5">
+        <label className="block text-[10px] font-black uppercase tracking-[0.14em] text-[#667085]" htmlFor="queue-monitor-search">
+          Search queue
+        </label>
+        <input
+          id="queue-monitor-search"
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          className="mt-2 w-full rounded-xl border border-[#dbe7ef] bg-[#fbfcfe] px-3 py-2 text-sm font-bold text-[#172033] outline-none transition placeholder:font-semibold placeholder:text-[#98a2b3] focus:border-[#0e9384] focus:bg-white focus:ring-3 focus:ring-[#99f6e4]/40"
+          placeholder="ค้นหาเลขคิว / ร้าน / สาขา"
+        />
+      </div>
       <div className="grid grid-cols-[minmax(0,1fr)_76px_62px] gap-2 border-b border-[#eef0f3] bg-[#fbfcfe] px-4 py-3 text-[10px] font-black uppercase tracking-[0.14em] text-[#667085] sm:grid-cols-[minmax(0,1fr)_110px_90px] sm:px-5">
         <span>Shop & Branch</span>
         <span className="text-center">Number</span>
@@ -79,9 +104,14 @@ export default function QueueMonitorClient({ initialBookings }: { initialBooking
           <p className="text-sm font-bold text-[#667085]">ยังไม่มีคิวที่กำลังรอเรียก</p>
           <p className="mt-1 text-xs text-[#98a2b3]">คิวที่จองสำเร็จผ่าน API จะแสดงที่นี่อัตโนมัติ</p>
         </div>
+      ) : filteredBookings.length === 0 ? (
+        <div className="px-5 py-12 text-center">
+          <p className="text-sm font-bold text-[#667085]">ไม่พบคิวที่ตรงกับคำค้น</p>
+          <p className="mt-1 text-xs text-[#98a2b3]">ลองค้นหาด้วยเลขคิว ชื่อร้าน หรือชื่อสาขา</p>
+        </div>
       ) : (
         <div>
-          {bookings.map((booking) => (
+          {filteredBookings.map((booking) => (
             <article
               key={booking.id}
               className="grid grid-cols-[minmax(0,1fr)_76px_62px] gap-2 border-b border-[#f0f2f5] px-4 py-3 transition hover:bg-[#fbfcfe] last:border-b-0 sm:grid-cols-[minmax(0,1fr)_110px_90px] sm:px-5"

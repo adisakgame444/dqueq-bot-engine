@@ -26,7 +26,13 @@ let tunnelProcess = null;
 let webManaged = false;
 let webPollTimer = null;
 let remotePollTimer = null;
+let remoteStopRequested = false;
+let remoteRestartTimer = null;
+let remoteRestartAttempts = 0;
 let runtimeEnvCache = null;
+
+const REMOTE_RESTART_DELAY_MS = 3000;
+const REMOTE_MAX_RESTART_ATTEMPTS = 5;
 
 const state = {
   web: "stopped",
@@ -296,10 +302,39 @@ function startBot() {
   });
 }
 
+function scheduleRemoteRestart(reason) {
+  if (remoteStopRequested || remoteRestartTimer) return;
+  if (remoteRestartAttempts >= REMOTE_MAX_RESTART_ATTEMPTS) {
+    log("remote", `Remote Android auto-restart stopped after ${remoteRestartAttempts} attempts. Last reason: ${reason}`);
+    setStatus("remote", "error");
+    return;
+  }
+
+  remoteRestartAttempts += 1;
+  setStatus("remote", "starting");
+  log(
+    "remote",
+    `Remote Android stopped unexpectedly (${reason}). Restarting in ${REMOTE_RESTART_DELAY_MS / 1000}s... attempt ${remoteRestartAttempts}/${REMOTE_MAX_RESTART_ATTEMPTS}`
+  );
+  remoteRestartTimer = setTimeout(() => {
+    remoteRestartTimer = null;
+    startRemote().catch((error) => {
+      log("remote", `Remote Android restart failed: ${error.message}`);
+      scheduleRemoteRestart(`restart failed: ${error.message}`);
+    });
+  }, REMOTE_RESTART_DELAY_MS);
+}
+
 async function startRemote() {
+  remoteStopRequested = false;
+  if (remoteRestartTimer) {
+    clearTimeout(remoteRestartTimer);
+    remoteRestartTimer = null;
+  }
   if (remoteProcess) return;
 
   if (await isRemoteReachable()) {
+    remoteRestartAttempts = 0;
     setStatus("remote", "running");
     log("remote", `ใช้ remote server ที่เปิดอยู่แล้ว: ${accountsUrl}`);
     return;
@@ -311,6 +346,7 @@ async function startRemote() {
   const remoteServer = path.join(rootDir, "remote-android", "server.cjs");
   try {
     remoteProcess = nodeCommand(remoteServer, []);
+    log("remote", `Remote Android process started pid=${remoteProcess.pid ?? "-"}`);
   } catch (error) {
     log("remote", error.message);
     setStatus("remote", "stopped");
@@ -322,10 +358,17 @@ async function startRemote() {
   remoteProcess.on("error", (error) => {
     log("remote", error.message);
     setStatus("remote", "error");
+    scheduleRemoteRestart(`process error: ${error.message}`);
   });
   remoteProcess.on("exit", (code, signal) => {
     log("remote", `หยุดทำงาน code=${code ?? "-"} signal=${signal ?? "-"}`);
     remoteProcess = null;
+    if (!remoteStopRequested) {
+      setStatus("remote", "error");
+      scheduleRemoteRestart(`unexpected exit code=${code ?? "-"} signal=${signal ?? "-"}`);
+      return;
+    }
+    remoteStopRequested = false;
     setStatus("remote", code === 0 ? "stopped" : "error");
   });
 }
@@ -483,6 +526,11 @@ function stopProcess(child, source) {
 }
 
 function stopAll() {
+  remoteStopRequested = Boolean(remoteProcess);
+  if (remoteRestartTimer) {
+    clearTimeout(remoteRestartTimer);
+    remoteRestartTimer = null;
+  }
   if (webManaged) stopProcess(webProcess, "web");
   stopProcess(botProcess, "bot");
   stopProcess(remoteProcess, "remote");
@@ -505,6 +553,7 @@ function startRemotePolling() {
   if (remotePollTimer) clearInterval(remotePollTimer);
   remotePollTimer = setInterval(async () => {
     if (await isRemoteReachable()) {
+      remoteRestartAttempts = 0;
       setStatus("remote", "running");
     } else if (!remoteProcess) {
       setStatus("remote", "stopped");
