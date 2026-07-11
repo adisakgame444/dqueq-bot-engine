@@ -543,13 +543,16 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
             <div className="grid gap-4 lg:grid-cols-2">
               {filteredBookings.map((booking) => {
                 const ready = isReadyQueue(booking.waitingAhead);
-                const cloneId = data.emailCloneMap?.[booking.accountEmail.toLowerCase()] || 1;
+                const mappedCloneId = data.emailCloneMap?.[booking.accountEmail.toLowerCase()];
+                const cloneId = typeof mappedCloneId === "number" ? mappedCloneId : undefined;
                 const webOrigin = typeof window !== "undefined" ? window.location.origin : "";
                 const shareableAgentUrl = agentUrl.startsWith("http://127.0.0.1") ? agentUrl.replace("127.0.0.1", "localhost") : agentUrl;
-                const publicLink = `${webOrigin}/app-ios/${cloneId}?agent=${encodeURIComponent(shareableAgentUrl)}`;
+                const publicLink = cloneId
+                  ? `${webOrigin}/app-ios/${cloneId}?agent=${encodeURIComponent(shareableAgentUrl)}`
+                  : "ยังไม่พบเครื่องโคลนที่ผูกกับอีเมลนี้";
                 
                 // Lookup local clone details
-                const localAccount = localAccounts.find((la) => la.id === cloneId);
+                const localAccount = cloneId ? localAccounts.find((la) => la.id === cloneId) : undefined;
 
                 return (
                 <article key={booking.id} className={`relative overflow-hidden rounded-[18px] border bg-white p-4 shadow-lg shadow-slate-300/35 ${
@@ -618,9 +621,9 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
                     </div>
                     <div className="flex items-center gap-2">
                       <p className="min-w-0 flex-1 truncate">
-                        ลิงก์ส่งต่อ (เปิดแอป): <span className="font-mono text-[#0e9384]">{publicLink}</span>
+                        ลิงก์ส่งต่อ (เปิดแอป): <span className={`font-black ${cloneId ? "text-[#0e9384]" : "text-[#b58120]"}`}>{cloneId ? `พร้อมใช้งาน (${localAccount?.name || `Account ${cloneId}`})` : publicLink}</span>
                       </p>
-                      {copyButton("Copy Link", `link-${booking.id}`, publicLink)}
+                      {cloneId && copyButton("Copy Link", `link-${booking.id}`, publicLink)}
                     </div>
                     <div className="flex items-center gap-2">
                       <p className="min-w-0 flex-1 truncate">
@@ -653,7 +656,7 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
                         <button
                           type="button"
                           disabled={localBusy}
-                          onClick={() => toggleAccountEnabled(cloneId, localAccount.enabled)}
+                          onClick={() => toggleAccountEnabled(localAccount.id, localAccount.enabled)}
                           className={`rounded px-2 py-1 text-[10px] font-black transition ${
                             localAccount.enabled
                               ? "bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100"
