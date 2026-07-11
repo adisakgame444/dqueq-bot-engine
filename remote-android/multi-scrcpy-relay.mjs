@@ -231,6 +231,20 @@ function createSession({
   let videoWidth = DISPLAY_WIDTH;
   let videoHeight = displayHeight;
   let keyframeRequestAt = 0;
+  let lastStateChangeAt = Date.now();
+  let lastStartedAt = 0;
+  let lastStreamingAt = 0;
+  let lastCleanupAt = 0;
+  let lastErrorAt = 0;
+  let lastError = "";
+  let lastExit = null;
+  let lastClientConnectedAt = 0;
+  let lastClientClosedAt = 0;
+  let lastClientClose = null;
+  let totalStarts = 0;
+  let totalErrors = 0;
+  let totalClientConnects = 0;
+  let totalClientCloses = 0;
 
   const options = new AdbScrcpyOptions3_3_3({
     video: true,
@@ -323,6 +337,7 @@ function createSession({
     controlConnection = undefined;
     if (process && !process.killed) process.kill();
     process = undefined;
+    lastCleanupAt = Date.now();
     await runAdb(adbPath, device, [
       "forward",
       "--remove",
@@ -331,6 +346,7 @@ function createSession({
     if (state !== "disabled") {
       state = "idle";
       detail = "Waiting for browser";
+      lastStateChangeAt = Date.now();
     }
   }
 
@@ -341,6 +357,10 @@ function createSession({
     startPromise = (async () => {
       state = "starting";
       detail = `Starting ${view} virtual display ${id} at ${density} DPI`;
+      lastStartedAt = Date.now();
+      lastStateChangeAt = lastStartedAt;
+      totalStarts += 1;
+      console.log(`[health:scrcpy:${id}:${view}] starting displayHeight=${displayHeight} density=${density}`);
       broadcastJson({ type: "state", state, detail });
 
       // Kill any running scrcpy server instances on the Android device to ensure a clean restart
@@ -390,6 +410,9 @@ function createSession({
         if (state === "streaming" || state === "starting") {
           state = "error";
           detail = `scrcpy session ${id} exited (${code})`;
+          lastExit = { code, at: Date.now() };
+          lastStateChangeAt = lastExit.at;
+          console.error(`[health:scrcpy:${id}:${view}] process exited code=${code ?? "-"}`);
           broadcastJson({ type: "state", state, detail });
         }
       });
@@ -447,6 +470,9 @@ function createSession({
           waitingForAppKeyframe = false;
           state = "streaming";
           detail = `Virtual display ${id} live`;
+          lastStreamingAt = Date.now();
+          lastStateChangeAt = lastStreamingAt;
+          console.log(`[health:scrcpy:${id}:${view}] streaming clients=${sockets.size}`);
           broadcastJson({ type: "state", state, detail });
           broadcastJson(latestMetadata);
           if (latestConfiguration) broadcastPacket(latestConfiguration);
@@ -460,8 +486,12 @@ function createSession({
       .catch(async (error) => {
         state = "error";
         detail = String(error?.message || error);
+        lastErrorAt = Date.now();
+        lastError = detail;
+        lastStateChangeAt = lastErrorAt;
+        totalErrors += 1;
         broadcastJson({ type: "state", state, detail });
-        console.error(`[scrcpy:${id}:${view}]`, error);
+        console.error(`[health:scrcpy:${id}:${view}] error:`, error);
         await cleanup();
         throw error;
       })
@@ -474,6 +504,9 @@ function createSession({
 
   function addSocket(socket) {
     sockets.add(socket);
+    lastClientConnectedAt = Date.now();
+    totalClientConnects += 1;
+    console.log(`[health:client:${id}:${view}] websocket connected clients=${sockets.size}`);
     socketStates.set(socket, { waitingForKeyframe: false });
     sendJson(socket, { type: "state", state, detail });
     if (latestMetadata) sendJson(socket, latestMetadata);
@@ -484,8 +517,21 @@ function createSession({
       setTimeout(() => controller?.resetVideo().catch(() => { }), 100);
     }
 
-    socket.on("close", () => sockets.delete(socket));
-    socket.on("error", () => sockets.delete(socket));
+    socket.on("close", (code, reason) => {
+      sockets.delete(socket);
+      lastClientClosedAt = Date.now();
+      totalClientCloses += 1;
+      lastClientClose = {
+        code,
+        reason: Buffer.isBuffer(reason) ? reason.toString() : String(reason || ""),
+        at: lastClientClosedAt,
+      };
+      console.log(`[health:client:${id}:${view}] websocket closed code=${code ?? "-"} reason=${lastClientClose.reason || "-"} clients=${sockets.size}`);
+    });
+    socket.on("error", (error) => {
+      sockets.delete(socket);
+      console.error(`[health:client:${id}:${view}] websocket error: ${error?.message || error}`);
+    });
   }
 
   async function handleInput(payload) {
@@ -595,6 +641,20 @@ function createSession({
         displayHeight,
         density,
         appPackage,
+        lastStateChangeAt,
+        lastStartedAt,
+        lastStreamingAt,
+        lastCleanupAt,
+        lastErrorAt,
+        lastError,
+        lastExit,
+        lastClientConnectedAt,
+        lastClientClosedAt,
+        lastClientClose,
+        totalStarts,
+        totalErrors,
+        totalClientConnects,
+        totalClientCloses,
       };
     },
     handleInput,

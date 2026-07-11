@@ -12,14 +12,38 @@ const DATA_DIR = process.env.DQUEUE_DATA_DIR || path.resolve(__dirname, "..");
 const PUBLIC_TUNNEL_FILE =
   process.env.DQUEUE_PUBLIC_TUNNEL_FILE ||
   path.join(DATA_DIR, "public-tunnel.json");
+const startedAt = Date.now();
+const healthEvents = [];
+const clientEvents = [];
+
+function pushLimited(list, event, limit = 80) {
+  list.push(event);
+  while (list.length > limit) list.shift();
+}
+
+function recordHealth(layer, status, detail, extra = {}) {
+  const event = {
+    at: Date.now(),
+    layer,
+    status,
+    detail: String(detail || ""),
+    ...extra,
+  };
+  pushLimited(healthEvents, event);
+  const suffix = event.detail ? ` ${event.detail}` : "";
+  console.log(`[health:${layer}] ${status}${suffix}`);
+  return event;
+}
 
 process.on("uncaughtException", (error) => {
+  recordHealth("agent", "fatal", error?.message || error);
   console.error("[Fatal] Remote Android uncaught exception:", error);
   process.exitCode = 1;
   setImmediate(() => process.exit(1));
 });
 
 process.on("unhandledRejection", (reason) => {
+  recordHealth("agent", "unhandled-rejection", reason?.message || reason);
   console.error("[Fatal] Remote Android unhandled rejection:", reason);
 });
 
@@ -66,6 +90,11 @@ let lastFrame = null;
 let lastFrameAt = 0;
 let accountOperation = null;
 let adbConnectPromise = null;
+let lastAdbOkAt = 0;
+let lastAdbErrorAt = 0;
+let lastAdbError = "";
+let lastFrameErrorAt = 0;
+let lastFrameError = "";
 
 function adbOnce(args, options = {}) {
   return new Promise((resolve, reject) => {
@@ -75,6 +104,7 @@ function adbOnce(args, options = {}) {
       {
         encoding: options.encoding === "buffer" ? null : "utf8",
         maxBuffer: options.maxBuffer || 12 * 1024 * 1024,
+        timeout: options.timeout || 0,
         windowsHide: true,
       },
       (error, stdout, stderr) => {
@@ -284,22 +314,35 @@ function translateAdbError(error) {
 async function adb(args, options = {}) {
   await ensureDeviceConnected();
   try {
-    return await adbOnce(args, options);
+    const result = await adbOnce(args, options);
+    lastAdbOkAt = Date.now();
+    return result;
   } catch (error) {
     const message = String(error && error.message ? error.message : error);
+    lastAdbErrorAt = Date.now();
+    lastAdbError = message;
     const reconnectable =
       DEVICE.includes(":") &&
       /device .* not found|device offline|no devices\/emulators found/i.test(
         message
       );
     if (reconnectable) {
+      recordHealth("adb", "reconnect", message);
       try {
         await connectAdb();
-        return await adbOnce(args, options);
+        const result = await adbOnce(args, options);
+        lastAdbOkAt = Date.now();
+        recordHealth("adb", "recovered", DEVICE);
+        return result;
       } catch (retryError) {
+        const retryMessage = String(retryError && retryError.message ? retryError.message : retryError);
+        lastAdbErrorAt = Date.now();
+        lastAdbError = retryMessage;
+        recordHealth("adb", "error", retryMessage);
         throw translateAdbError(retryError);
       }
     }
+    recordHealth("adb", "error", message);
     throw translateAdbError(error);
   }
 }
@@ -319,6 +362,12 @@ async function captureFrame() {
       lastFrame = frame;
       lastFrameAt = Date.now();
       return frame;
+    })
+    .catch((error) => {
+      lastFrameErrorAt = Date.now();
+      lastFrameError = String(error && error.message ? error.message : error);
+      recordHealth("frame", "error", lastFrameError);
+      throw error;
     })
     .finally(() => {
       framePromise = null;
@@ -406,6 +455,64 @@ function readPublicTunnelOrigin() {
     // The tunnel may still be starting. Local URLs remain available.
   }
   return "";
+}
+
+async function collectHealthSnapshot() {
+  let adbState = "unknown";
+  let adbOk = false;
+  let adbError = "";
+  try {
+    adbState = String(await adb(["get-state"], { timeout: 3000 })).trim();
+    adbOk = adbState === "device";
+  } catch (error) {
+    adbError = String(error && error.message ? error.message : error);
+  }
+
+  const scrcpy = await scrcpyRelayPromise
+    .then((relay) => relay.listStates())
+    .catch((error) => [
+      {
+        state: "error",
+        detail: String(error && error.message ? error.message : error),
+      },
+    ]);
+  const publicTunnel = readPublicTunnelOrigin();
+  return {
+    ok: adbOk,
+    uptimeMs: Date.now() - startedAt,
+    agent: {
+      pid: process.pid,
+      startedAt,
+      now: Date.now(),
+    },
+    adb: {
+      ok: adbOk,
+      state: adbState,
+      device: DEVICE,
+      path: ADB_PATH,
+      lastOkAt: lastAdbOkAt,
+      lastErrorAt: lastAdbErrorAt,
+      lastError: adbError || lastAdbError,
+    },
+    scrcpy,
+    frame: {
+      hasLastFrame: Boolean(lastFrame),
+      lastFrameAt,
+      lastFrameAgeMs: lastFrameAt ? Date.now() - lastFrameAt : null,
+      lastErrorAt: lastFrameErrorAt,
+      lastError: lastFrameError,
+    },
+    tunnel: {
+      publicUrl: publicTunnel,
+      hasPublicUrl: Boolean(publicTunnel),
+    },
+    accounts: {
+      total: accountStore.listAccounts().length,
+      enabled: accountStore.listAccounts().filter((account) => account.enabled !== false).length,
+    },
+    recentEvents: healthEvents.slice(-30),
+    recentClientEvents: clientEvents.slice(-30),
+  };
 }
 
 const iconCache = new Map();
@@ -585,6 +692,34 @@ const server = http.createServer(async (req, res) => {
   const accountAdminMatch = /^\/api\/accounts\/(\d+)$/.exec(url.pathname);
 
   try {
+    if (req.method === "GET" && url.pathname === "/api/health") {
+      sendJson(res, 200, await collectHealthSnapshot());
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/client-event") {
+      const payload = await readJson(req);
+      const event = {
+        at: Date.now(),
+        session: Number(payload.session || 0) || null,
+        view: payload.view === "ios" ? "ios" : "android",
+        type: String(payload.type || "unknown").slice(0, 80),
+        detail: String(payload.detail || "").slice(0, 500),
+        socketState: payload.socketState,
+        framesRendered: payload.framesRendered,
+        url: String(payload.url || "").slice(0, 500),
+        userAgent: String(req.headers["user-agent"] || "").slice(0, 300),
+      };
+      pushLimited(clientEvents, event);
+      recordHealth(
+        "client",
+        event.type,
+        `session=${event.session || "-"} view=${event.view} ${event.detail}`.trim()
+      );
+      sendJson(res, 200, { ok: true });
+      return;
+    }
+
     if (req.method === "GET" && url.pathname === "/manifest.json") {
       const view = url.searchParams.get("view");
       const id = url.searchParams.get("id");

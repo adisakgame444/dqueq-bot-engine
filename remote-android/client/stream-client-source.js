@@ -104,6 +104,7 @@ let fallbackReason = "";
 let waitingForKeyframe = true;
 let fallbackTimer;
 let stoppedByModeSwitch = false;
+let hasRenderedFrame = false;
 
 function setLastAction(message) {
   if (lastAction) lastAction.textContent = message;
@@ -128,6 +129,36 @@ function updateDebug(extra = {}) {
     socketState: socket?.readyState,
     ...extra,
   };
+}
+
+function reportClientEvent(type, detail = "", extra = {}) {
+  const payload = {
+    type,
+    detail: String(detail || ""),
+    session: SESSION_ID,
+    view: SESSION_VIEW,
+    socketState: socket?.readyState,
+    framesRendered: decoder?.framesRendered || 0,
+    url: location.href,
+    ...extra,
+  };
+  try {
+    const body = JSON.stringify(payload);
+    if (navigator.sendBeacon) {
+      const blob = new Blob([body], { type: "application/json" });
+      if (navigator.sendBeacon(`${AGENT_HTTP_ORIGIN}/api/client-event`, blob)) {
+        return;
+      }
+    }
+    fetch(`${AGENT_HTTP_ORIGIN}/api/client-event`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body,
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    // Diagnostics must never break the stream.
+  }
 }
 
 async function apiInput(payload) {
@@ -331,8 +362,23 @@ function showPngFallback(reason) {
   updateDebug();
 }
 
+function showFrozenStream(reason) {
+  streamActive = false;
+  fallbackReason = reason || "stream reconnecting";
+  canvas.hidden = false;
+  screen.hidden = true;
+  loading.style.display = "none";
+  streamMode.textContent = `Reconnecting: ${fallbackReason}`;
+  stopPngFallback();
+  stopFpsCounter();
+  updateDebug({ frozenFrame: true });
+  reportClientEvent("frozen-frame", fallbackReason);
+}
+
 function showLiveStream() {
+  const wasActive = streamActive;
   streamActive = true;
+  hasRenderedFrame = true;
   fallbackReason = "";
   stopPngFallback();
   canvas.hidden = false;
@@ -341,6 +387,7 @@ function showLiveStream() {
   streamMode.textContent = "scrcpy H.264 live";
   startFpsCounter();
   updateDebug();
+  if (!wasActive) reportClientEvent("stream-live", "received keyframe");
 }
 
 function showModeSwitched(reason) {
@@ -415,6 +462,7 @@ async function disposeDecoder() {
 function connectScrcpy() {
   if (!("VideoDecoder" in window) || !WebCodecsVideoDecoder.isSupported) {
     showPngFallback("WebCodecs is not supported");
+    reportClientEvent("unsupported-webcodecs", "WebCodecs is not supported");
     return;
   }
 
@@ -426,12 +474,18 @@ function connectScrcpy() {
     `${AGENT_WS_ORIGIN}/scrcpy/${SESSION_ID}?${socketParams.toString()}`
   );
   socket.binaryType = "arraybuffer";
+  reportClientEvent("ws-connect", "opening websocket");
 
   socket.addEventListener("message", async (event) => {
     if (typeof event.data === "string") {
       const message = JSON.parse(event.data);
       if (message.type === "state" && message.state === "error") {
-        showPngFallback(message.detail);
+        reportClientEvent("scrcpy-state-error", message.detail);
+        if (hasRenderedFrame) {
+          showFrozenStream(message.detail);
+        } else {
+          showPngFallback(message.detail);
+        }
         socket.close();
       }
       if (message.type === "metadata") {
@@ -478,13 +532,21 @@ function connectScrcpy() {
       }
     } catch (error) {
       console.error("scrcpy decoder failed", error);
-      showPngFallback(error.message);
+      reportClientEvent("decode-error", error?.message || error);
+      if (hasRenderedFrame) {
+        showFrozenStream(error.message);
+      } else {
+        showPngFallback(error.message);
+      }
       socket.close();
     }
   });
 
   socket.addEventListener("close", (event) => {
     disposeDecoder();
+    reportClientEvent("ws-close", event.reason || "websocket closed", {
+      closeCode: event.code,
+    });
     if (event.code === 4001) {
       stopped = true;
       showModeSwitched(event.reason || "Stream mode switched");
@@ -492,15 +554,24 @@ function connectScrcpy() {
     }
     if (!stopped) {
       if (!fallbackReason || fallbackReason === "waiting for virtual display") {
-        showPngFallback("stream disconnected");
+        if (hasRenderedFrame) {
+          showFrozenStream("stream disconnected");
+        } else {
+          showPngFallback("stream disconnected");
+        }
       }
       window.setTimeout(connectScrcpy, 2000);
     }
   });
 
   socket.addEventListener("error", () => {
+    reportClientEvent("ws-error", "websocket error");
     if (!fallbackReason || fallbackReason === "waiting for virtual display") {
-      showPngFallback("stream unavailable");
+      if (hasRenderedFrame) {
+        showFrozenStream("stream unavailable");
+      } else {
+        showPngFallback("stream unavailable");
+      }
     }
   });
 }
