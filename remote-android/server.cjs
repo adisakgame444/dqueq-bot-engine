@@ -95,6 +95,13 @@ let lastAdbErrorAt = 0;
 let lastAdbError = "";
 let lastFrameErrorAt = 0;
 let lastFrameError = "";
+let deviceResolvePromise = null;
+
+function isAndroidServiceError(message) {
+  return /can't find service:\s*(package|window|activity)|service ['"]?(package|window|activity)['"]? not found/i.test(
+    String(message || "")
+  );
+}
 
 function adbOnce(args, options = {}) {
   return new Promise((resolve, reject) => {
@@ -120,6 +127,29 @@ function adbOnce(args, options = {}) {
 }
 
 // ดึงพอร์ตทั้งหมดที่เปิดขึ้นมาของ BlueStacks จากไฟล์คอนฟิก
+function adbOnceForDevice(deviceId, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    execFile(
+      ADB_PATH,
+      ["-s", deviceId, ...args],
+      {
+        encoding: options.encoding === "buffer" ? null : "utf8",
+        maxBuffer: options.maxBuffer || 12 * 1024 * 1024,
+        timeout: options.timeout || 0,
+        windowsHide: true,
+      },
+      (error, stdout, stderr) => {
+        if (error) {
+          const detail = String(stderr || stdout || error.message).trim();
+          reject(new Error(detail || error.message));
+          return;
+        }
+        resolve(stdout);
+      }
+    );
+  });
+}
+
 function getBlueStacksPorts() {
   const ports = new Set();
   const programData = process.env.ProgramData || "C:\\ProgramData";
@@ -162,6 +192,48 @@ async function getDeviceAndroidVersion(deviceIp) {
 }
 
 // ระบบสแกนพอร์ตและเชื่อมต่อพอร์ตที่รันอยู่จริง
+async function getConnectedDevices() {
+  const devicesOutput = await new Promise((resolve, reject) => {
+    execFile(
+      ADB_PATH,
+      ["devices"],
+      { timeout: 10000, windowsHide: true },
+      (err, stdout, stderr) => {
+        if (err) {
+          reject(new Error(`${err.message}${stderr ? "\nStderr: " + stderr.trim() : ""}`));
+        } else {
+          resolve(String(stdout || ""));
+        }
+      }
+    );
+  });
+  return devicesOutput
+    .split(/\r?\n/)
+    .map((line) => line.trim().split(/\s+/))
+    .filter((parts) => parts.length === 2 && parts[1] === "device")
+    .map((parts) => parts[0]);
+}
+
+async function isDeviceFrameworkHealthy(deviceId) {
+  try {
+    await adbOnceForDevice(deviceId, ["shell", "cmd", "package", "list", "packages", "android"], {
+      timeout: 5000,
+    });
+    return true;
+  } catch (error) {
+    const message = String(error && error.message ? error.message : error);
+    recordHealth("adb", "unhealthy-device", `${deviceId}: ${message}`);
+    return false;
+  }
+}
+
+function scoreDevice(deviceId) {
+  if (deviceId === DEVICE) return 1000;
+  if (/^127\.0\.0\.1:\d+$/.test(deviceId)) return 900;
+  if (/^emulator-\d+$/.test(deviceId)) return 800;
+  return 0;
+}
+
 async function autoDetectDevice() {
   if (process.env.ANDROID_DEVICE) {
     return process.env.ANDROID_DEVICE;
@@ -188,43 +260,29 @@ async function autoDetectDevice() {
 
   // ค้นหาว่าตัวไหนเชื่อมต่อสำเร็จจริง
   try {
-    const devicesOutput = await new Promise((resolve, reject) => {
-      execFile(
-        ADB_PATH,
-        ["devices"],
-        { timeout: 10000, windowsHide: true },
-        (err, stdout, stderr) => {
-          if (err) {
-            const extendedErr = new Error(`${err.message}${stderr ? "\nStderr: " + stderr.trim() : ""}`);
-            reject(extendedErr);
-          } else {
-            resolve(stdout);
-          }
-        }
-      );
-    });
-
-    const lines = devicesOutput.split(/\r?\n/);
-    const connectedDevices = [];
-    for (const line of lines) {
-      const parts = line.trim().split(/\s+/);
-      if (parts.length === 2 && parts[1] === "device") {
-        connectedDevices.push(parts[0]);
-      }
-    }
+    const connectedDevices = (await getConnectedDevices()).sort(
+      (a, b) => scoreDevice(b) - scoreDevice(a)
+    );
 
     if (connectedDevices.length > 0) {
       let android11Device = null;
+      let unhealthyAndroid11Device = null;
       for (const dev of connectedDevices) {
         const ver = await getDeviceAndroidVersion(dev);
         if (ver === "11") {
-          android11Device = dev;
-          break;
+          if (await isDeviceFrameworkHealthy(dev)) {
+            android11Device = dev;
+            break;
+          }
+          unhealthyAndroid11Device = unhealthyAndroid11Device || dev;
         }
       }
       if (android11Device) {
         console.log(`[Auto-Detect] พบเครื่องจำลอง Android 11 ที่กำลังรันอยู่: ${android11Device}`);
         return android11Device;
+      }
+      if (unhealthyAndroid11Device) {
+        throw new Error(`Android 11 device is connected but framework is unhealthy: ${unhealthyAndroid11Device}`);
       }
       console.warn(`[Auto-Detect] พบเครื่องจำลองกำลังรันอยู่ ${connectedDevices.length} เครื่อง แต่ไม่ใช่ Android 11 (รองรับเฉพาะ Android 11 เท่านั้น)`);
       throw new Error("ตรวจพบเครื่องจำลอง Android กำลังรันอยู่ แต่ไม่ใช่รุ่น Android 11! ระบบจัดการสตรีมจอโคลนนี้รองรับและทำงานได้สมบูรณ์เฉพาะกับ BlueStacks Instance Android 11 เท่านั้น กรุณาเปิดเครื่องจำลอง Android 11");
@@ -245,17 +303,10 @@ async function ensureDeviceConnected() {
 
   let isConnected = false;
   try {
-    const devicesOutput = await new Promise((resolve) => {
-      execFile(
-        ADB_PATH,
-        ["devices"],
-        { timeout: 10000, windowsHide: true },
-        (err, stdout) => {
-          resolve(err ? "" : stdout);
-        }
-      );
-    });
-    isConnected = devicesOutput.includes(DEVICE) && devicesOutput.includes("\tdevice");
+    const connectedDevices = await getConnectedDevices();
+    isConnected =
+      connectedDevices.includes(DEVICE) &&
+      (await isDeviceFrameworkHealthy(DEVICE));
   } catch {}
 
   if (isConnected) {
@@ -263,9 +314,26 @@ async function ensureDeviceConnected() {
   }
 
   console.log(`[Auto-Detect] ตรวจไม่พบอุปกรณ์ ${DEVICE} กำลังเริ่มทำการสแกนหาอุปกรณ์จำลองจำลอง...`);
-  const detected = await autoDetectDevice();
+  const detected = await resolveHealthyDevice("current device unavailable");
   DEVICE = detected;
   await connectAdb();
+}
+
+function resolveHealthyDevice(reason = "resolve requested") {
+  if (deviceResolvePromise) return deviceResolvePromise;
+  deviceResolvePromise = (async () => {
+    recordHealth("adb", "resolve-device", reason);
+    const previous = DEVICE;
+    const detected = await autoDetectDevice();
+    DEVICE = detected;
+    if (previous !== detected) {
+      recordHealth("adb", "device-switched", `${previous} -> ${detected}`);
+    }
+    return detected;
+  })().finally(() => {
+    deviceResolvePromise = null;
+  });
+  return deviceResolvePromise;
 }
 
 function connectAdb() {
@@ -326,10 +394,14 @@ async function adb(args, options = {}) {
       /device .* not found|device offline|no devices\/emulators found/i.test(
         message
       );
-    if (reconnectable) {
+    if (reconnectable || isAndroidServiceError(message)) {
       recordHealth("adb", "reconnect", message);
       try {
-        await connectAdb();
+        if (isAndroidServiceError(message)) {
+          await resolveHealthyDevice(message);
+        } else {
+          await connectAdb();
+        }
         const result = await adbOnce(args, options);
         lastAdbOkAt = Date.now();
         recordHealth("adb", "recovered", DEVICE);
@@ -1156,6 +1228,7 @@ const scrcpyRelayPromise = import("./multi-scrcpy-relay.mjs").then(
       server,
       adbPath: ADB_PATH,
       device: () => DEVICE,
+      resolveDevice: resolveHealthyDevice,
       serverPath: SCRCPY_SERVER_FILE,
       accounts: accountStore
         .listAccounts()

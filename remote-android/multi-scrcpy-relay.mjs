@@ -84,7 +84,13 @@ function connectAdb(adbPath, device) {
   return adbConnectPromise;
 }
 
-async function runAdb(adbPath, device, args, options = {}) {
+function isAndroidServiceError(message) {
+  return /can't find service:\s*(package|window|activity)|service ['"]?(package|window|activity)['"]? not found/i.test(
+    String(message || "")
+  );
+}
+
+async function runAdb(adbPath, device, args, options = {}, resolveDevice) {
   const devStr = typeof device === "function" ? device() : String(device);
   if (devStr.includes(":")) {
     await connectAdb(adbPath, device);
@@ -98,8 +104,12 @@ async function runAdb(adbPath, device, args, options = {}) {
       /device .* not found|device offline|no devices\/emulators found/i.test(
         message
       );
-    if (!reconnectable) throw error;
-    await connectAdb(adbPath, device);
+    if (!reconnectable && !isAndroidServiceError(message)) throw error;
+    if (resolveDevice) {
+      await resolveDevice(message);
+    } else {
+      await connectAdb(adbPath, device);
+    }
     return runAdbOnce(adbPath, device, args, options);
   }
 }
@@ -208,6 +218,7 @@ function createSession({
   displayHeight,
   adbPath,
   device,
+  resolveDevice,
   serverPath,
   appPackage,
 }) {
@@ -245,6 +256,27 @@ function createSession({
   let totalErrors = 0;
   let totalClientConnects = 0;
   let totalClientCloses = 0;
+  let restartTimer;
+  let restartAttempts = 0;
+
+  const adb = (args, options = {}) =>
+    runAdb(adbPath, device, args, options, resolveDevice);
+
+  function scheduleRestart(reason) {
+    if (state === "disabled" || restartTimer || sockets.size === 0) return;
+    restartAttempts += 1;
+    const delay = Math.min(10_000, 1000 + restartAttempts * 1500);
+    console.log(
+      `[health:scrcpy:${id}:${view}] retry in ${delay}ms reason=${String(reason || "-")}`
+    );
+    restartTimer = setTimeout(() => {
+      restartTimer = undefined;
+      if (state === "disabled" || sockets.size === 0) return;
+      start().catch((error) => {
+        scheduleRestart(error?.message || error);
+      });
+    }, delay);
+  }
 
   const options = new AdbScrcpyOptions3_3_3({
     video: true,
@@ -338,7 +370,7 @@ function createSession({
     if (process && !process.killed) process.kill();
     process = undefined;
     lastCleanupAt = Date.now();
-    await runAdb(adbPath, device, [
+    await adb([
       "forward",
       "--remove",
       `tcp:${localPort}`,
@@ -353,6 +385,10 @@ function createSession({
   async function start() {
     if (state === "streaming") return;
     if (startPromise) return startPromise;
+    if (restartTimer) {
+      clearTimeout(restartTimer);
+      restartTimer = undefined;
+    }
 
     startPromise = (async () => {
       state = "starting";
@@ -367,15 +403,15 @@ function createSession({
       await killScrcpyProcesses(adbPath, device, scid.padStart(8, "0"));
 
       // Force Android to hide navigation and status bars globally for all apps
-      await runAdb(adbPath, device, ["shell", "settings", "put", "global", "policy_control", "immersive.full=*"]).catch(() => {});
+      await adb(["shell", "settings", "put", "global", "policy_control", "immersive.full=*"]).catch(() => {});
 
-      await runAdb(adbPath, device, ["push", serverPath, deviceServerPath]);
-      await runAdb(adbPath, device, [
+      await adb(["push", serverPath, deviceServerPath]);
+      await adb([
         "forward",
         "--remove",
         `tcp:${localPort}`,
       ]).catch(() => { });
-      await runAdb(adbPath, device, [
+      await adb([
         "forward",
         `tcp:${localPort}`,
         socketName,
@@ -470,6 +506,7 @@ function createSession({
           waitingForAppKeyframe = false;
           state = "streaming";
           detail = `Virtual display ${id} live`;
+          restartAttempts = 0;
           lastStreamingAt = Date.now();
           lastStateChangeAt = lastStreamingAt;
           console.log(`[health:scrcpy:${id}:${view}] streaming clients=${sockets.size}`);
@@ -493,6 +530,7 @@ function createSession({
         broadcastJson({ type: "state", state, detail });
         console.error(`[health:scrcpy:${id}:${view}] error:`, error);
         await cleanup();
+        scheduleRestart(detail);
         throw error;
       })
       .finally(() => {
@@ -527,6 +565,10 @@ function createSession({
         at: lastClientClosedAt,
       };
       console.log(`[health:client:${id}:${view}] websocket closed code=${code ?? "-"} reason=${lastClientClose.reason || "-"} clients=${sockets.size}`);
+      if (sockets.size === 0 && restartTimer) {
+        clearTimeout(restartTimer);
+        restartTimer = undefined;
+      }
     });
     socket.on("error", (error) => {
       sockets.delete(socket);
@@ -548,7 +590,7 @@ function createSession({
       return true;
     }
     if (payload.type === "close") {
-      await runAdb(adbPath, device, ["shell", "am", "force-stop", appPackage]);
+      await adb(["shell", "am", "force-stop", appPackage]);
       return true;
     }
 
@@ -663,6 +705,10 @@ function createSession({
       message = "Account is disabled",
       closeCode = 1000,
     } = {}) {
+      if (restartTimer) {
+        clearTimeout(restartTimer);
+        restartTimer = undefined;
+      }
       state = "disabled";
       detail = message;
       broadcastJson({ type: "state", state, detail });
@@ -681,6 +727,7 @@ export function attachMultiScrcpyRelay({
   server,
   adbPath,
   device,
+  resolveDevice,
   serverPath,
   accounts = [],
 }) {
@@ -731,6 +778,7 @@ export function attachMultiScrcpyRelay({
       displayHeight,
       adbPath,
       device,
+      resolveDevice,
       serverPath,
       appPackage: account.packageName,
     });
