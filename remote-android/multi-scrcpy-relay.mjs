@@ -24,14 +24,14 @@ const MAX_BUFFERED_BYTES = 512 * 1024;
 const MAX_SOCKET_BUFFER_BYTES = 8 * 1024 * 1024;
 const DISPLAY_WIDTH = 900;
 const DISPLAY_HEIGHTS = {
-  android: 1980,
+  android: 1780,
   ios: 1920,
 };
 const MIN_ANDROID_DISPLAY_HEIGHT = 1080;
 const MAX_ANDROID_DISPLAY_HEIGHT = 2800;
 const DISPLAY_DENSITIES = {
-  android: 400,
-  ios: 360,
+  android: 360,
+  ios: 380,
 };
 let adbConnectPromise = null;
 
@@ -283,20 +283,20 @@ function createSession({
     audio: false,
     control: true,
     videoCodec: "h264",
-    videoBitRate: 4_000_000,
+    videoBitRate: 6_000_000,
     videoCodecOptions: new ScrcpyCodecOptions({
       iFrameInterval: 1,
       maxBframes: 0,
     }),
     maxFps: 120,
-    maxSize: 1080,
+    maxSize: 2500,
     sendFrameMeta: true,
     logLevel: "warn",
     tunnelForward: true,
     scid,
     newDisplay: new ScrcpyNewDisplay(DISPLAY_WIDTH, displayHeight, density),
     vdSystemDecorations: false,
-    vdDestroyContent: true,
+    vdDestroyContent: false,
   });
 
   function sendJson(socket, payload) {
@@ -482,25 +482,33 @@ function createSession({
         options.createMediaStreamTransformer()
       );
       const reader = mediaStream.getReader();
-      let appReady = false;
-      let appOpenError;
       let waitingForAppKeyframe = true;
+      const launchViaAdb = async (pkg) => {
+        try {
+          await adb(["shell", "monkey", "-p", pkg, "-c", "android.intent.category.LAUNCHER", "1"]);
+        } catch (err) {
+          console.warn(`[scrcpy:${id}:${view}] monkey launch failed for ${pkg}: ${err?.message || err}`);
+          await adb(["shell", "am", "start", "-n", `${pkg}/me.deltaqueue.dqueue.MainActivity`]).catch(() => {});
+        }
+        await adb(["shell", "settings", "put", "global", "policy_control", "immersive.full=*"]).catch(() => {});
+      };
+
       const openApp = (async () => {
-        await controller.startApp(appPackage);
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        await controller.resetVideo();
-        appReady = true;
+        try {
+          await controller.startApp(appPackage);
+        } catch (err) {
+          console.warn(`[scrcpy:${id}:${view}] controller.startApp failed for ${appPackage}: ${err?.message || err}`);
+        }
+        await launchViaAdb(appPackage);
       })().catch((error) => {
-        appOpenError = error;
+        console.warn(`[scrcpy:${id}:${view}] Background app open error:`, error?.message || error);
       });
 
       while (true) {
         const { done, value: packet } = await reader.read();
         if (done) break;
-        if (appOpenError) throw appOpenError;
         if (packet.type === "configuration") latestConfiguration = packet;
 
-        if (!appReady) continue;
         if (waitingForAppKeyframe) {
           if (packet.type === "configuration" || !packet.keyframe) continue;
           waitingForAppKeyframe = false;
@@ -586,7 +594,12 @@ function createSession({
       return true;
     }
     if (payload.type === "launch") {
-      await controller.startApp(appPackage);
+      try {
+        await controller.startApp(appPackage);
+      } catch (err) {
+        console.warn(`[scrcpy:${id}:${view}] controller.startApp failed on manual launch for ${appPackage}: ${err?.message || err}`);
+      }
+      await launchViaAdb(appPackage);
       return true;
     }
     if (payload.type === "close") {
@@ -735,6 +748,12 @@ export function attachMultiScrcpyRelay({
   const accountById = new Map();
   const switchOperations = new Map();
 
+  for (const account of accounts) {
+    if (account && account.id) {
+      accountById.set(Number(account.id), account);
+    }
+  }
+
   const normalizeView = (view) => (view === "ios" ? "ios" : "android");
   const sessionKey = (id, view) => `${Number(id)}:${normalizeView(view)}`;
 
@@ -850,9 +869,8 @@ export function attachMultiScrcpyRelay({
     });
   }
 
-  for (const account of accounts) {
-    if (account.enabled !== false) ensureSession(account);
-  }
+  // Starting virtual displays for every clone during agent boot competes with
+  // BlueStacks' own startup. A session is created as soon as its page is opened.
 
   const wss = new WebSocketServer({ noServer: true });
   wss.on("connection", (socket, request, key) => {
@@ -869,10 +887,14 @@ export function attachMultiScrcpyRelay({
     const sessionId = Number(match[1]);
     const view = normalizeView(url.searchParams.get("view"));
     const requestedHeight = url.searchParams.get("displayHeight");
-    const account = accountById.get(sessionId);
+    let account = accountById.get(sessionId);
     if (!account) {
-      socket.destroy();
-      return;
+      account = {
+        id: sessionId,
+        packageName: sessionId === 1 ? "me.deltaqueue.dqueue" : `me.deltaqueue.dqueue.account${sessionId}`,
+        enabled: true,
+      };
+      accountById.set(sessionId, account);
     }
     try {
       const key = sessionKey(sessionId, view);
@@ -880,7 +902,11 @@ export function attachMultiScrcpyRelay({
       wss.handleUpgrade(request, socket, head, (webSocket) => {
         wss.emit("connection", webSocket, request, key);
       });
-    } catch {
+    } catch (err) {
+      console.error(`[scrcpy:upgrade:${sessionId}:${view}] Upgrade failed:`, err?.message || err);
+      try {
+        socket.write("HTTP/1.1 500 Internal Server Error\r\n\r\n");
+      } catch {}
       socket.destroy();
     }
   });

@@ -7,7 +7,7 @@ const DEVICE_WIDTH = 900;
 const isAppView = document.body.dataset.view === "app" || document.body.dataset.view === "app-ios";
 const isIosView = document.body.dataset.view === "app-ios";
 const SESSION_VIEW = isIosView ? "ios" : "android";
-const DEFAULT_DEVICE_HEIGHT = isIosView ? 1920 : 1980;
+const DEFAULT_DEVICE_HEIGHT = isIosView ? 1920 : 1780;
 const MIN_ANDROID_DEVICE_HEIGHT = 1080;
 const MAX_ANDROID_DEVICE_HEIGHT = 2800;
 const APP_STATUS_HEIGHT = 78;
@@ -16,6 +16,10 @@ const IOS_TOP_CROP = 0;
 const Y_OFFSET = isIosView ? IOS_TOP_CROP : 0;
 let deviceHeight = DEFAULT_DEVICE_HEIGHT;
 let deviceVisibleHeight = deviceHeight - Y_OFFSET;
+
+function calculateAndroidDisplayHeight() {
+  return DEFAULT_DEVICE_HEIGHT;
+}
 const H264_CODEC = 1748121140;
 const accountMatch = /^\/(?:account|app|app-ios)\/(\d+)$/.exec(location.pathname);
 const SESSION_ID = accountMatch ? Number(accountMatch[1]) : 1;
@@ -64,22 +68,7 @@ let pointerStart = null;
 let pointerMoved = false;
 let stopped = false;
 
-function calculateAndroidDisplayHeight() {
-  if (!isAppView || isIosView) return DEFAULT_DEVICE_HEIGHT;
-  const viewportWidth = document.documentElement.clientWidth;
-  const viewportHeight = document.documentElement.clientHeight;
-  if (!viewportWidth || !viewportHeight) return DEFAULT_DEVICE_HEIGHT;
 
-  const requested =
-    (DEVICE_WIDTH * viewportHeight) / viewportWidth -
-    APP_STATUS_HEIGHT +
-    ANDROID_DISPLAY_HEIGHT_ADJUST;
-  const clamped = Math.max(
-    MIN_ANDROID_DEVICE_HEIGHT,
-    Math.min(MAX_ANDROID_DEVICE_HEIGHT, requested)
-  );
-  return Math.round(clamped / 2) * 2;
-}
 
 function setDeviceHeight(height) {
   const parsed = Number(height);
@@ -548,8 +537,9 @@ function connectScrcpy() {
       closeCode: event.code,
     });
     if (event.code === 4001) {
-      stopped = true;
-      showModeSwitched(event.reason || "Stream mode switched");
+      setTimeout(() => {
+        if (!stopped) connectScrcpy();
+      }, 500);
       return;
     }
     if (!stopped) {
@@ -753,5 +743,22 @@ function updateAppStatusBattery() {
   }
 }
 updateAppStatusBattery();
+
+const compactToggleBtn = document.getElementById("compact-toggle");
+if (compactToggleBtn) {
+  const urlParams = new URLSearchParams(window.location.search);
+  const isCompactUrl = urlParams.get("compact") === "1" || urlParams.get("scale") !== null;
+  if (isCompactUrl) {
+    document.body.classList.add("compact-mode");
+    compactToggleBtn.textContent = "🔍 จอปกติ (100%)";
+  }
+
+  compactToggleBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    document.body.classList.toggle("compact-mode");
+    const isCompact = document.body.classList.contains("compact-mode");
+    compactToggleBtn.textContent = isCompact ? "🔍 จอปกติ (100%)" : "🔍 ย่อหน้านี้ (82%)";
+  });
+}
 
 connectScrcpy();

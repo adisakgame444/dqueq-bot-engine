@@ -55,13 +55,40 @@ export default function DeviceControlClient({ cloneId }: DeviceControlClientProp
       });
   }, []);
 
+  // Proxy helper function to route API requests via server proxy with fallback & auto-syncing agentUrl
+  async function agentRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+    const proxyFetchOptions: RequestInit = {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        path,
+        method: options.method || "GET",
+        body: options.body ? JSON.parse(options.body as string) : undefined,
+        agentUrl,
+      }),
+      cache: "no-store",
+    };
+    if (options.signal) proxyFetchOptions.signal = options.signal;
+
+    const response = await fetch("/api/manager/agent-proxy", proxyFetchOptions);
+    const resData = await response.json();
+    if (!response.ok || resData.ok === false) {
+      throw new Error(resData.error || `HTTP ${response.status}`);
+    }
+    if (resData.publicOrigin && resData.publicOrigin.trim() && resData.publicOrigin.trim() !== agentUrl) {
+      const newUrl = resData.publicOrigin.trim();
+      setAgentUrl(newUrl);
+      localStorage.setItem("dqueue_agent_url", newUrl);
+    }
+    return resData as T;
+  }
+
   // 2. Fetch active local accounts list from agent url
   useEffect(() => {
     let active = true;
     async function load() {
       try {
-        const res = await fetch(`${agentHttp}/api/accounts`, { cache: "no-store" });
-        const resData = await res.json();
+        const resData = await agentRequest<{ ok: boolean; accounts: any[]; publicOrigin?: string }>("/api/accounts");
         if (active && resData.ok) {
           setLocalAccounts(resData.accounts || []);
         }
@@ -75,7 +102,7 @@ export default function DeviceControlClient({ cloneId }: DeviceControlClientProp
       active = false;
       clearInterval(interval);
     };
-  }, [agentHttp]);
+  }, [agentUrl]);
 
   // 3. Connect to scrcpy websocket server
   useEffect(() => {
@@ -221,15 +248,10 @@ export default function DeviceControlClient({ cloneId }: DeviceControlClientProp
   // 4. Input Actions (Tap, Swipe, Keystrokes)
   async function apiInput(payload: any) {
     try {
-      const response = await fetch(`${apiBase}/input`, {
+      await agentRequest(`/api/account/${cloneId}/input`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-      const data = await response.json();
-      if (!response.ok || !data.ok) {
-        throw new Error(data.error || `HTTP ${response.status}`);
-      }
     } catch (err: any) {
       console.error(err);
       setLastAction(`Error: ${err.message}`);

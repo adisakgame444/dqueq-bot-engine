@@ -103,13 +103,11 @@ export async function runBatchBooking(input: {
 }): Promise<BatchBookingResult[]> {
   const assignedTargets = distributeTargets(input.targets, input.totalAccounts);
   const accounts = input.availableAccounts.slice(0, input.totalAccounts);
-  const delayMs = Math.max(0, input.delayMs ?? Number(process.env.QUEQ_BATCH_DELAY_MS ?? "1200"));
-  const results: BatchBookingResult[] = [];
+  const delayMs = Math.max(0, input.delayMs ?? Number(process.env.QUEQ_BATCH_DELAY_MS ?? "0"));
 
-  for (let index = 0; index < assignedTargets.length; index += 1) {
+  const executeSingleAccountBooking = async (index: number): Promise<BatchBookingResult> => {
     const target = assignedTargets[index]!;
     const account = accounts[index]!;
-    await setActiveApiAccount(account.id);
 
     const baseResult = {
       accountId: account.id,
@@ -160,8 +158,27 @@ export async function runBatchBooking(input: {
       };
     }
 
-    results.push(result);
     await input.onProgress?.(result, index + 1, assignedTargets.length);
+    return result;
+  };
+
+  if (delayMs === 0) {
+    // Parallel Instant Batch Booking: Execute ALL account bookings in parallel!
+    const results = await Promise.all(
+      assignedTargets.map((_, index) => executeSingleAccountBooking(index))
+    );
+    if (accounts.length > 0) {
+      await setActiveApiAccount(accounts[accounts.length - 1]!.id);
+    }
+    return results;
+  }
+
+  // Staggered sequential execution (if delayMs explicitly specified > 0)
+  const results: BatchBookingResult[] = [];
+  for (let index = 0; index < assignedTargets.length; index += 1) {
+    await setActiveApiAccount(accounts[index]!.id);
+    const result = await executeSingleAccountBooking(index);
+    results.push(result);
     if (index < assignedTargets.length - 1 && delayMs > 0) {
       await sleep(delayMs);
     }
@@ -172,26 +189,24 @@ export async function runBatchBooking(input: {
 
 export async function cancelBatchBookingResults(results: BatchBookingResult[]): Promise<BatchBookingResult[]> {
   const accounts = loadApiAccounts();
-  const output: BatchBookingResult[] = [];
+  const validResults = results.filter((item) => item.success && item.queueId);
 
-  for (const result of results.filter((item) => item.success && item.queueId)) {
-    const account = accounts.find((item) => item.id === result.accountId);
-    if (!account) {
-      output.push({ ...result, success: false, message: "ไม่พบบัญชีในระบบ" });
-      continue;
-    }
-
-    try {
-      await setActiveApiAccount(account.id);
-      const cancelled = await createClient(account).cancelQueue(result.shopId, result.zoneId, result.queueId!);
-      if (cancelled.success) {
-        await cancelApiBookingRecord(result.queueId!);
+  return Promise.all(
+    validResults.map(async (result) => {
+      const account = accounts.find((item) => item.id === result.accountId);
+      if (!account) {
+        return { ...result, success: false, message: "ไม่พบบัญชีในระบบ" };
       }
-      output.push({ ...result, success: cancelled.success, message: cancelled.message });
-    } catch (error: any) {
-      output.push({ ...result, success: false, message: String(error?.message ?? error) });
-    }
-  }
 
-  return output;
+      try {
+        const cancelled = await createClient(account).cancelQueue(result.shopId, result.zoneId, result.queueId!);
+        if (cancelled.success) {
+          await cancelApiBookingRecord(result.queueId!);
+        }
+        return { ...result, success: cancelled.success, message: cancelled.message };
+      } catch (error: any) {
+        return { ...result, success: false, message: String(error?.message ?? error) };
+      }
+    })
+  );
 }

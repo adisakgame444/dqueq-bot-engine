@@ -62,6 +62,13 @@ export interface ApiResponse {
 // ---------------------------------------------------------
 // QueQ API Client
 // ---------------------------------------------------------
+const keepAliveAgent = new https.Agent({
+  keepAlive: true,
+  maxSockets: 100,
+  maxFreeSockets: 20,
+  timeout: 60000,
+});
+
 export class QueqApiClient {
   private accessToken: string;
   private refreshTokenValue: string;
@@ -163,6 +170,7 @@ export class QueqApiClient {
         port: 443,
         path: `/${path}`,
         method,
+        agent: keepAliveAgent,
         headers: {
           Authorization: `Bearer ${this.accessToken}`,
           "User-Agent": "QueQ/10.0.0 (Android 9)",

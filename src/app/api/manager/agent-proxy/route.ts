@@ -43,7 +43,18 @@ export async function POST(req: NextRequest) {
       fetchOptions.body = JSON.stringify(body);
     }
 
-    const res = await fetch(targetUrl, fetchOptions);
+    let res;
+    try {
+      res = await fetch(targetUrl, fetchOptions);
+    } catch (primaryErr: any) {
+      const fallbackUrl = `http://${agentHost}:${agentPort}${path}`;
+      if (targetUrl !== fallbackUrl) {
+        console.warn(`Primary proxy fetch to ${targetUrl} failed (${primaryErr?.message}), trying local fallback ${fallbackUrl}`);
+        res = await fetch(fallbackUrl, fetchOptions);
+      } else {
+        throw primaryErr;
+      }
+    }
     const resData = await res.json();
     return NextResponse.json(resData, { status: res.status });
   } catch (err: any) {

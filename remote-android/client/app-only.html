@@ -11,7 +11,7 @@
   <title>__ACCOUNT_NAME__</title>
   <style>
     :root {
-      --android-display-height: 1980fr;
+      --android-display-height: 1780fr;
       color-scheme: dark;
       background: #030712;
     }
@@ -41,9 +41,9 @@
       position: relative;
       display: grid;
       grid-template-rows: 78fr var(--android-display-height);
-      width: min(450px, calc((100dvh - 24px) * 900 / 2058));
+      width: min(450px, calc((100dvh - 24px) * 900 / 1858));
       max-width: calc(100vw - 24px);
-      aspect-ratio: 900 / 2058;
+      aspect-ratio: 900 / 1858;
       overflow: hidden;
       border: 1px solid #202a39;
       border-radius: 22px;
@@ -73,6 +73,29 @@
       background: #030712;
       object-fit: fill;
       transform-origin: top center;
+      transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .compact-mode #screen,
+    .compact-mode #stream {
+      transform: scale(0.84) translateY(-30px);
+    }
+
+    .compact-btn {
+      border: 0;
+      background: rgba(0, 0, 0, 0.35);
+      color: #fff;
+      font: 700 10px system-ui, -apple-system, sans-serif;
+      padding: 3px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      pointer-events: auto;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+
+    .compact-btn:hover {
+      background: rgba(0, 0, 0, 0.65);
     }
 
     #screen {
@@ -250,7 +273,7 @@
         width: 100%;
         height: 100%;
         display: grid;
-        grid-template-rows: 78fr var(--android-display-height);
+        grid-template-rows: 105fr var(--android-display-height);
         padding-top: 0;
         max-width: none;
         aspect-ratio: auto;
@@ -372,6 +395,7 @@
           </svg>
         </div>
         <div class="status-right">
+          <button id="compact-toggle" class="compact-btn" title="ย่อหน้าจอเฉพาะหน้านี้">🔍 ย่อหน้านี้ (82%)</button>
           <span class="volte-badge">
             <span>Vo</span>
             <span>LTE</span>
@@ -393,7 +417,7 @@
     <textarea id="keyboard-capture" readonly class="keyboard-capture" aria-hidden="true" autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
     <section class="device-shell" id="device" tabindex="0" aria-label="DQueue app">
       <img id="screen" alt="DQueue" draggable="false" hidden />
-      <canvas id="stream" width="900" height="1920" hidden></canvas>
+      <canvas id="stream" width="900" height="2500" hidden></canvas>
       <div class="loading" id="loading">กำลังเปิด DQueue...</div>
       <div class="mode" id="stream-mode">Waiting</div>
     </section>

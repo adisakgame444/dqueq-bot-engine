@@ -57,6 +57,52 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
       const saved = localStorage.getItem("dqueue_agent_url") || defaultUrl;
       setAgentUrl(saved);
     }
+
+    async function fetchActiveAgentTunnel() {
+      try {
+        const res = await fetch("/api/manager/agent-sync", { cache: "no-store" });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.ok && data.activeUrl && data.activeUrl.trim()) {
+            const cloudUrl = data.activeUrl.trim();
+            setAgentUrl((prev) => {
+              if (prev !== cloudUrl) {
+                localStorage.setItem("dqueue_agent_url", cloudUrl);
+                return cloudUrl;
+              }
+              return prev;
+            });
+            localAgentFailureCountRef.current = 0;
+            setLocalError(false);
+          }
+        }
+      } catch (e) {
+        // Ignore background fetch error
+      }
+    }
+
+    function handleWakeUp() {
+      localAgentFailureCountRef.current = 0;
+      setLocalError(false);
+      fetchActiveAgentTunnel();
+    }
+
+    window.addEventListener("focus", handleWakeUp);
+    window.addEventListener("online", handleWakeUp);
+    const handleVis = () => {
+      if (document.visibilityState === "visible") {
+        handleWakeUp();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVis);
+
+    fetchActiveAgentTunnel();
+
+    return () => {
+      window.removeEventListener("focus", handleWakeUp);
+      window.removeEventListener("online", handleWakeUp);
+      document.removeEventListener("visibilitychange", handleVis);
+    };
   }, []);
 
   const [localAccounts, setLocalAccounts] = useState<any[]>(initialData.localAccounts || []);
@@ -258,11 +304,16 @@ export default function DashboardClient({ initialData }: { initialData: Dashboar
           // Ignore discovery failures (local agent not running).
         }
 
-        const localData = await localAgentRequest<{ accounts: any[]; emailCloneMap?: Record<string, number> }>("/api/accounts", {
+        const localData = await localAgentRequest<{ accounts: any[]; publicOrigin?: string; emailCloneMap?: Record<string, number> }>("/api/accounts", {
           signal: AbortSignal.timeout(10000),
         });
         if (!cancelled) {
           applyLocalAgentData(localData);
+          if (localData.publicOrigin && localData.publicOrigin.trim() && localData.publicOrigin.trim() !== agentUrl) {
+            const newUrl = localData.publicOrigin.trim();
+            setAgentUrl(newUrl);
+            localStorage.setItem("dqueue_agent_url", newUrl);
+          }
         }
       } catch (error) {
         console.error("Local agent sync failed:", error);

@@ -5,6 +5,13 @@ require("dotenv").config();
 const { execFile } = require("child_process");
 const accountStore = require("./account-store.cjs");
 const { buildClone } = require("./clone-builder.cjs");
+const { originalApkPaths } = require("./clone-assets.cjs");
+const {
+  normalizeDeviceConfig,
+  candidatePorts,
+  isSupportedAndroidVersion,
+  shouldRediscoverDevice,
+} = require("./device-connection.cjs");
 
 const HOST = process.env.REMOTE_ANDROID_HOST || "127.0.0.1";
 const PORT = Number(process.env.REMOTE_ANDROID_PORT || "5100");
@@ -70,7 +77,8 @@ function resolveAdbPath() {
 }
 
 const ADB_PATH = resolveAdbPath();
-let DEVICE = process.env.ANDROID_DEVICE || "127.0.0.1:5555";
+const { hasPinnedDevice, initialDevice } = normalizeDeviceConfig(process.env.ANDROID_DEVICE);
+let DEVICE = initialDevice;
 const ALLOWED_ORIGINS = (process.env.REMOTE_ANDROID_ALLOWED_ORIGINS || "*")
   .split(",")
   .map((origin) => origin.trim())
@@ -96,6 +104,11 @@ let lastAdbError = "";
 let lastFrameErrorAt = 0;
 let lastFrameError = "";
 let deviceResolvePromise = null;
+let deviceWarmupPromise = null;
+let deviceWarmupTimer = null;
+
+const ADB_COMMAND_TIMEOUT_MS = Number(process.env.DQUEUE_ADB_COMMAND_TIMEOUT_MS || "10000");
+const ADB_WARMUP_RETRY_MS = Number(process.env.DQUEUE_ADB_WARMUP_RETRY_MS || "2000");
 
 function isAndroidServiceError(message) {
   return /can't find service:\s*(package|window|activity)|service ['"]?(package|window|activity)['"]? not found/i.test(
@@ -111,7 +124,7 @@ function adbOnce(args, options = {}) {
       {
         encoding: options.encoding === "buffer" ? null : "utf8",
         maxBuffer: options.maxBuffer || 12 * 1024 * 1024,
-        timeout: options.timeout || 0,
+        timeout: options.timeout || ADB_COMMAND_TIMEOUT_MS,
         windowsHide: true,
       },
       (error, stdout, stderr) => {
@@ -135,7 +148,7 @@ function adbOnceForDevice(deviceId, args, options = {}) {
       {
         encoding: options.encoding === "buffer" ? null : "utf8",
         maxBuffer: options.maxBuffer || 12 * 1024 * 1024,
-        timeout: options.timeout || 0,
+        timeout: options.timeout || ADB_COMMAND_TIMEOUT_MS,
         windowsHide: true,
       },
       (error, stdout, stderr) => {
@@ -235,28 +248,30 @@ function scoreDevice(deviceId) {
 }
 
 async function autoDetectDevice() {
-  if (process.env.ANDROID_DEVICE) {
-    return process.env.ANDROID_DEVICE;
+  if (hasPinnedDevice) {
+    return DEVICE;
   }
 
   const bsPorts = getBlueStacksPorts();
   const defaultPorts = [5555, 5556, 5557, 5565, 5575, 5585];
-  const candidatePorts = Array.from(new Set([...bsPorts, ...defaultPorts]));
+  const ports = candidatePorts(bsPorts, defaultPorts);
 
   // ทดลองสั่ง adb connect กับทุกพอร์ตที่เป็นไปได้แบบรวดเร็ว
-  for (const port of candidatePorts) {
-    const target = `127.0.0.1:${port}`;
-    try {
-      await new Promise((resolve) => {
-        execFile(
-          ADB_PATH,
-          ["connect", target],
-          { timeout: 3000, windowsHide: true },
-          () => resolve()
-        );
-      });
-    } catch {}
-  }
+  // Probe likely ports concurrently. Sequential timeouts made a machine with
+  // a non-default BlueStacks port wait several seconds per failed port.
+  await Promise.allSettled(
+    ports.map(
+      (port) =>
+        new Promise((resolve) => {
+          execFile(
+            ADB_PATH,
+            ["connect", `127.0.0.1:${port}`],
+            { timeout: 2500, windowsHide: true },
+            () => resolve()
+          );
+        })
+    )
+  );
 
   // ค้นหาว่าตัวไหนเชื่อมต่อสำเร็จจริง
   try {
@@ -269,7 +284,7 @@ async function autoDetectDevice() {
       let unhealthyAndroid11Device = null;
       for (const dev of connectedDevices) {
         const ver = await getDeviceAndroidVersion(dev);
-        if (ver === "11") {
+        if (isSupportedAndroidVersion(ver)) {
           if (await isDeviceFrameworkHealthy(dev)) {
             android11Device = dev;
             break;
@@ -292,12 +307,11 @@ async function autoDetectDevice() {
     throw err;
   }
 
-  return `127.0.0.1:${candidatePorts[0] || 5555}`;
+  return `127.0.0.1:${ports[0] || 5555}`;
 }
 
 async function ensureDeviceConnected() {
-  if (process.env.ANDROID_DEVICE) {
-    await connectAdb();
+  if (lastAdbOkAt && Date.now() - lastAdbOkAt < 3000) {
     return;
   }
 
@@ -311,6 +325,12 @@ async function ensureDeviceConnected() {
 
   if (isConnected) {
     return;
+  }
+
+  if (hasPinnedDevice) {
+    await connectAdb();
+    if (await isDeviceFrameworkHealthy(DEVICE)) return;
+    throw new Error(`Android device is connected but still booting: ${DEVICE}`);
   }
 
   console.log(`[Auto-Detect] ตรวจไม่พบอุปกรณ์ ${DEVICE} กำลังเริ่มทำการสแกนหาอุปกรณ์จำลองจำลอง...`);
@@ -345,6 +365,7 @@ function connectAdb() {
       {
         encoding: "utf8",
         maxBuffer: 1024 * 1024,
+        timeout: 3000,
         windowsHide: true,
       },
       (error, stdout, stderr) => {
@@ -359,6 +380,54 @@ function connectAdb() {
     adbConnectPromise = null;
   });
   return adbConnectPromise;
+}
+
+async function ensureAgentPortReverse() {
+  await new Promise((resolve, reject) => {
+    execFile(
+      ADB_PATH,
+      ["-s", DEVICE, "reverse", "tcp:5100", "tcp:5100"],
+      { timeout: 5000, windowsHide: true },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error(String(stderr || stdout || error.message).trim()));
+          return;
+        }
+        resolve();
+      }
+    );
+  });
+}
+
+function scheduleDeviceWarmup(delayMs = 0) {
+  if (deviceWarmupTimer) return;
+  deviceWarmupTimer = setTimeout(() => {
+    deviceWarmupTimer = null;
+    warmupDevice().catch(() => {});
+  }, delayMs);
+}
+
+async function warmupDevice() {
+  if (deviceWarmupPromise) return deviceWarmupPromise;
+  deviceWarmupPromise = (async () => {
+    try {
+      await ensureDeviceConnected();
+      await adbOnce(["shell", "getprop", "sys.boot_completed"], { timeout: 5000 });
+      await ensureAgentPortReverse();
+      lastAdbOkAt = Date.now();
+      recordHealth("adb", "ready", DEVICE);
+      await autoInstallAccount1IfMissing();
+    } catch (error) {
+      const message = String(error?.message || error);
+      lastAdbErrorAt = Date.now();
+      lastAdbError = message;
+      recordHealth("adb", "warming-up", message);
+      scheduleDeviceWarmup(ADB_WARMUP_RETRY_MS);
+    }
+  })().finally(() => {
+    deviceWarmupPromise = null;
+  });
+  return deviceWarmupPromise;
 }
 
 function translateAdbError(error) {
@@ -397,7 +466,10 @@ async function adb(args, options = {}) {
     if (reconnectable || isAndroidServiceError(message)) {
       recordHealth("adb", "reconnect", message);
       try {
-        if (isAndroidServiceError(message)) {
+        if (shouldRediscoverDevice({
+          hasPinnedDevice,
+          isAndroidServiceError: isAndroidServiceError(message),
+        })) {
           await resolveHealthyDevice(message);
         } else {
           await connectAdb();
@@ -411,10 +483,12 @@ async function adb(args, options = {}) {
         lastAdbErrorAt = Date.now();
         lastAdbError = retryMessage;
         recordHealth("adb", "error", retryMessage);
+        scheduleDeviceWarmup(ADB_WARMUP_RETRY_MS);
         throw translateAdbError(retryError);
       }
     }
     recordHealth("adb", "error", message);
+    scheduleDeviceWarmup(ADB_WARMUP_RETRY_MS);
     throw translateAdbError(error);
   }
 }
@@ -690,12 +764,7 @@ async function autoInstallAccount1IfMissing() {
     }
 
     console.log("[Auto-Install] Original app (Account 1) is missing. Preparing to install...");
-    const originalApksDir = path.join(path.resolve(__dirname, ".."), "scratch", "dqueue-clone", "original");
-    const apks = [
-      path.join(originalApksDir, "base.apk"),
-      path.join(originalApksDir, "split_config.hdpi.apk"),
-      path.join(originalApksDir, "split_config.th.apk"),
-    ];
+    const apks = originalApkPaths();
 
     for (const apk of apks) {
       if (!fs.existsSync(apk)) {
@@ -709,6 +778,31 @@ async function autoInstallAccount1IfMissing() {
     console.log("[Auto-Install] Original app (Account 1) has been successfully installed.");
   } catch (error) {
     console.error("[Auto-Install] Failed to auto-install Account 1:", error.message);
+  }
+}
+
+async function ensureAccountInstalled(account) {
+  if (!account || !account.packageName) return false;
+  const isInstalled = await isPackageInstalled(account.packageName);
+  if (isInstalled) return true;
+
+  console.log(`[Auto-Install] App for ${account.name} (${account.packageName}) is missing. Preparing to build and install...`);
+  if (account.id === 1) {
+    await autoInstallAccount1IfMissing();
+    return isPackageInstalled(account.packageName);
+  }
+
+  try {
+    await buildClone({
+      account,
+      adbPath: ADB_PATH,
+      device: DEVICE,
+    });
+    console.log(`[Auto-Install] Successfully built and installed clone for ${account.name}`);
+    return true;
+  } catch (error) {
+    console.error(`[Auto-Install] Failed to build/install clone for ${account.name}:`, error.message);
+    return false;
   }
 }
 
@@ -764,6 +858,11 @@ const server = http.createServer(async (req, res) => {
   const accountAdminMatch = /^\/api\/accounts\/(\d+)$/.exec(url.pathname);
 
   try {
+    if (req.method === "GET" && url.pathname === "/api/ping") {
+      sendJson(res, 200, { ok: true, startedAt });
+      return;
+    }
+
     if (req.method === "GET" && url.pathname === "/api/health") {
       sendJson(res, 200, await collectHealthSnapshot());
       return;
@@ -860,12 +959,14 @@ const server = http.createServer(async (req, res) => {
         });
         return;
       }
+      await ensureAccountInstalled(account);
       const relay = await scrcpyRelayPromise;
       const sessionView = appIosMatch ? "ios" : "android";
       const session = await relay.activateSession(account, sessionView);
       session.start().catch(() => {
         // The WebSocket client will receive and report any startup error.
       });
+      adb(["shell", "monkey", "-p", account.packageName, "-c", "android.intent.category.LAUNCHER", "1"]).catch(() => {});
       const safeName = account.name.replace(
         /[&<>"']/g,
         (character) =>
@@ -883,6 +984,7 @@ const server = http.createServer(async (req, res) => {
         fs
           .readFileSync(targetFile, "utf8")
           .replaceAll("__ACCOUNT_NAME__", safeName)
+          .replace('src="/stream-client.js"', `src="/stream-client.js?v=${Date.now()}"`)
           .replace('href="/manifest.json"', `href="/manifest.json?view=${viewType}&amp;id=${accountId}&amp;v=${viewType === "app-ios" ? "114" : "3"}"`)
       );
       res.writeHead(200, {
@@ -936,6 +1038,16 @@ const server = http.createServer(async (req, res) => {
         fs.mkdirSync(DATA_DIR, { recursive: true });
         map[user.email.trim().toLowerCase()] = Number(accountId);
         fs.writeFileSync(mapPath, JSON.stringify(map, null, 2), "utf8");
+      }
+
+      const accountToLaunch = accountStore.getAccount(Number(accountId));
+      if (accountToLaunch) {
+        ensureAccountInstalled(accountToLaunch).then((installed) => {
+          if (installed) {
+            console.log(`[Token-Inject] Launching ${accountToLaunch.name} (${accountToLaunch.packageName}) via ADB...`);
+            adb(["shell", "monkey", "-p", accountToLaunch.packageName, "-c", "android.intent.category.LAUNCHER", "1"]).catch(() => {});
+          }
+        }).catch(() => {});
       }
 
       sendJson(res, 200, { ok: true });
@@ -1259,12 +1371,40 @@ server.listen(PORT, HOST, () => {
       .join(", ")}`
   );
 
-  // Asynchronously try to connect ADB and auto-install Account 1 if it is missing
-  ensureDeviceConnected()
-    .then(() => autoInstallAccount1IfMissing())
-    .catch((err) => {
-      console.error("[Auto-Install] Failed to connect to emulator for startup check:", err.message);
-    });
+  // BlueStacks often exposes ADB before Android has completed booting. Keep
+  // retrying in the background, then install Account 1 on the first success.
+  scheduleDeviceWarmup();
+
+  function syncPublicTunnelToCloudServer() {
+    try {
+      const tunnelFile = path.resolve(__dirname, "..", "public-tunnel.json");
+      if (!fs.existsSync(tunnelFile)) return;
+      const data = JSON.parse(fs.readFileSync(tunnelFile, "utf8"));
+      if (!data || !data.url) return;
+      const tunnelUrl = String(data.url).trim();
+      if (!tunnelUrl) return;
+
+      const targets = [
+        "https://www.bothero.online/api/manager/agent-sync",
+        "https://bothero.online/api/manager/agent-sync",
+        "http://127.0.0.1:3000/api/manager/agent-sync",
+        "http://127.0.0.1:5000/api/manager/agent-sync",
+      ];
+
+      const bodyStr = JSON.stringify({ url: tunnelUrl });
+      for (const targetUrl of targets) {
+        fetch(targetUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: bodyStr,
+        }).catch(() => {});
+      }
+    } catch (e) {
+      // Ignore sync errors
+    }
+  }
+  syncPublicTunnelToCloudServer();
+  setInterval(syncPublicTunnelToCloudServer, 10000);
 });
 
 module.exports = { server, scrcpyRelayPromise };

@@ -17,6 +17,7 @@ const publicTunnelFile = path.join(externalDataDir, "public-tunnel.json");
 const webUrl = "http://localhost:5000";
 const remoteBaseUrl = `http://${process.env.REMOTE_ANDROID_HOST || "127.0.0.1"}:${process.env.REMOTE_ANDROID_PORT || "5100"}`;
 const accountsUrl = `${remoteBaseUrl}/accounts`;
+const remoteHealthUrl = `${remoteBaseUrl}/api/ping`;
 
 let mainWindow;
 let webProcess = null;
@@ -171,7 +172,9 @@ function isWebReachable() {
 }
 
 function isRemoteReachable() {
-  return isUrlReachable(accountsUrl);
+  // Do not make launcher startup wait for an ADB check before the local agent
+  // and tunnel can be available; BlueStacks warms up in the agent background.
+  return isUrlReachable(remoteHealthUrl);
 }
 
 async function waitForRemoteReady(timeoutMs = 15000) {
